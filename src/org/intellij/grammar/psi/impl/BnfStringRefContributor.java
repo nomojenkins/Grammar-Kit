@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.psi.impl;
@@ -67,22 +55,21 @@ public class BnfStringRefContributor extends PsiReferenceContributor {
     );
 
     registrar.registerReferenceProvider(
-      psiElement(BnfStringImpl.class).withParent(psiElement(BnfAttr.class).withName(
-        or(string().endsWith("Class"), string().endsWith("Package"), string().endsWith("TypeFactory"), 
+      psiElement(BnfStringImpl.class).withAncestor(3, psiElement(BnfAttr.class).withName(
+        or(string().endsWith("Class"), string().endsWith("Package"), string().endsWith("TypeFactory"),
            string().with(oneOf(JAVA_CLASS_ATTRIBUTES))))),
       new PsiReferenceProvider() {
 
         @NotNull
         @Override
         public PsiReference[] getReferencesByElement(@NotNull PsiElement element, @NotNull ProcessingContext context) {
-          PsiReferenceProvider provider = JavaHelper.getJavaHelper(element).getClassReferenceProvider();
-          return provider == null ? PsiReference.EMPTY_ARRAY : provider.getReferencesByElement(element, new ProcessingContext());
+          return JavaHelper.getJavaHelper(element).getClassReferences(element, context);
         }
       });
   }
 
   private static PatternCondition<String> oneOf(Set<KnownAttribute<?>> attributes) {
-    return new PatternCondition<String>("oneOf") {
+    return new PatternCondition<>("oneOf") {
       @Override
       public boolean accepts(@NotNull String s, ProcessingContext context) {
         return attributes.contains(KnownAttribute.getCompatibleAttribute(s));

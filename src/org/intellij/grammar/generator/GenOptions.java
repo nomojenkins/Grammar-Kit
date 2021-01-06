@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.generator;
@@ -41,11 +29,12 @@ public class GenOptions {
   public final boolean generatePsiClassesMap;
   public final boolean generateVisitor;
   public final String visitorValue;
+  public final boolean generateFQN;
   public final Case generateTokenCase;
   public final Case generateElementCase;
   public final boolean generateTokenAccessors;
   public final boolean generateTokenAccessorsSet;
-  public final JavaVersion javaVersion;
+  public final int javaVersion;
 
   public GenOptions(BnfFile myFile) {
     Map<String, String> genOptions = getRootAttribute(myFile, KnownAttribute.GENERATE).asMap();
@@ -63,9 +52,10 @@ public class GenOptions {
     generateTokenAccessorsSet = genOptions.containsKey("token-accessors") || genOptions.containsKey("tokenAccessors");
     generateVisitor = !"no".equals(genOptions.get("visitor"));
     visitorValue = "void".equals(genOptions.get("visitor-value")) ? null : StringUtil.nullize(genOptions.get("visitor-value"));
+    generateFQN = "yes".equals(genOptions.get("fqn"));
 
     generateTokenCase = ParserGeneratorUtil.enumFromString(genOptions.get("token-case"), Case.UPPER);
     generateElementCase = ParserGeneratorUtil.enumFromString(genOptions.get("element-case"), Case.UPPER);
-    javaVersion = JavaVersion.fromString(genOptions.get("java"));
+    javaVersion = StringUtil.parseInt(genOptions.get("java"), 11);
   }
 }

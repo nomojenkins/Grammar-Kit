@@ -40,6 +40,7 @@ public class BnfGeneratorTest extends BnfGeneratorTestCase {
   public void testBindersAndHooks() throws Exception { doGenTest(false); }
   public void testAutoRecovery() throws Exception { doGenTest(true); }
   public void testConsumeMethods() throws Exception { doGenTest(false); }
+  public void testGenOptions() throws Exception { doGenTest(true); }
 
   @Bombed(year = 2030, user = "author", month = 1, day = 1, description = "not implemented")
   public void testUpperRules() throws Exception { doGenTest(true); }
@@ -61,7 +62,7 @@ public class BnfGeneratorTest extends BnfGeneratorTestCase {
         File targetFile = new File(FileUtilRt.getTempDirectory(), name);
         targetFile.getParentFile().mkdirs();
         FileOutputStream outputStream = new FileOutputStream(targetFile, true);
-        PrintWriter out = new PrintWriter(new OutputStreamWriter(outputStream, CharsetToolkit.UTF8));
+        PrintWriter out = new PrintWriter(new OutputStreamWriter(outputStream, myFile.getVirtualFile().getCharset()));
         out.println("// ---- " + file.getName() + " -----------------");
         return out;
       }

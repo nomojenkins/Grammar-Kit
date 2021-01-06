@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.generator;
@@ -33,6 +21,8 @@ import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.analysis.BnfFirstNextAnalyzer;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.GrammarUtil;
+import org.intellij.grammar.psi.impl.GrammarUtil.FakeElementType;
+import org.intellij.grammar.psi.impl.GrammarUtil.FakeBnfExpression;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -40,7 +30,7 @@ import java.util.*;
 
 import static org.intellij.grammar.generator.ParserGeneratorUtil.*;
 import static org.intellij.grammar.generator.RuleGraphHelper.Cardinality.*;
-import static org.intellij.grammar.psi.impl.GrammarUtil.collectExtraArguments;
+import static org.intellij.grammar.psi.impl.GrammarUtil.collectMetaParameters;
 import static org.intellij.grammar.psi.impl.GrammarUtil.isDoubleAngles;
 
 /**
@@ -403,6 +393,9 @@ public class RuleGraphHelper {
         else if (isPrivateOrNoType(targetRule)) {
           result = collectMembers(targetRule, visited);
         }
+        else if (Rule.isUpper(targetRule)) {
+          result = Collections.emptyMap();
+        }
         else {
           result = psiMap(getSynonymTargetOrSelf(targetRule), REQUIRED);
         }
@@ -437,7 +430,7 @@ public class RuleGraphHelper {
             }
             else {
               if (params == null) {
-                params = collectExtraArguments(metaRule, metaRule.getExpression());
+                params = collectMetaParameters(metaRule, metaRule.getExpression());
               }
               int idx = params.indexOf(member.getText());
               if (idx > -1 && idx < arguments.size()) {

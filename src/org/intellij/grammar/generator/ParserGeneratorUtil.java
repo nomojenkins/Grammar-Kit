@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 package org.intellij.grammar.generator;
 
@@ -61,8 +49,6 @@ import static org.intellij.grammar.psi.BnfTypes.BNF_SEQUENCE;
  *         Date: 16.07.11 10:41
  */
 public class ParserGeneratorUtil {
-  private static final Object NULL = new Object();
-  private static final BnfExpression NULL_ATTR = new FakeBnfExpression("NULL");
   private static final String RESERVED_SUFFIX = "_$";
   private static final Set<String> JAVA_RESERVED = new THashSet<>(Arrays.asList(
     "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
@@ -71,11 +57,6 @@ public class ParserGeneratorUtil {
     "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static",
     "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true",
     "try", "void", "volatile", "while", "continue"));
-
-  @NotNull
-  public static String getRawClassName(@NotNull String name) {
-    return name.indexOf("<") < name.indexOf(">") ? name.substring(0, name.indexOf("<")) : name;
-  }
 
   enum ConsumeType {
     FAST, SMART, DEFAULT;
@@ -168,7 +149,6 @@ public class ParserGeneratorUtil {
 
   public static Object getAttributeValue(BnfExpression value) {
     if (value == null) return null;
-    if (value == NULL_ATTR) return NULL;
     if (value instanceof BnfReferenceOrToken) {
       return getTokenValue((BnfReferenceOrToken)value);
     }
@@ -209,8 +189,8 @@ public class ParserGeneratorUtil {
 
   private static Object getTokenValue(BnfReferenceOrToken child) {
     String text = child.getText();
-    if (text.equals("true") || text.equals("false")) return Boolean.parseBoolean(text);
-    if (text.equals("null")) return NULL;
+    if (text.equals("true")) return true;
+    if (text.equals("false")) return false;
     return GrammarUtil.getIdText(child);
   }
 
@@ -445,14 +425,14 @@ public class ParserGeneratorUtil {
 
   @NotNull
   static JBIterable<BnfRule> getSuperRules(@NotNull BnfFile file, @Nullable BnfRule rule) {
-    abstract class Fun<S, T> extends JBIterable.SFun<S, T> { }
-    JBIterable<Object> result = JBIterable.generate(rule, new Fun<Object, Object>() {
-      final Set<BnfRule> visited = new HashSet<>();
+    JBIterable<Object> result = JBIterable.generate(rule, new JBIterable.SFun<Object, Object>() {
+      Set<BnfRule> visited;
 
       @Override
       public Object fun(Object o) {
         if (o == ObjectUtils.NULL) return null;
         BnfRule cur = (BnfRule)o;
+        if (visited == null) visited = new HashSet<>();
         if (!visited.add(cur)) return ObjectUtils.NULL;
         BnfRule next = getSynonymTargetOrSelf(cur);
         if (next != cur) return next;
@@ -901,7 +881,7 @@ public class ParserGeneratorUtil {
                                            int mask,
                                            Function<String, String> substitutor,
                                            Function<Integer, List<String>> annoProvider,
-                                           Function<String, String> shortener) {
+                                           NameShortener shortener) {
     StringBuilder sb = new StringBuilder();
     for (int i = offset; i < paramsTypes.size(); i += 2) {
       if (i > offset) sb.append(", ");
@@ -910,16 +890,16 @@ public class ParserGeneratorUtil {
       if (type.startsWith("<") && type.endsWith(">")) {
         type = substitutor.fun(type);
       }
-      if (BnfConstants.AST_NODE_CLASS.equals(type)) name = "node";
+      if (type.endsWith(BnfConstants.AST_NODE_CLASS)) name = "node";
       if (type.endsWith("ElementType")) name = "type";
       if (type.endsWith("Stub")) name = "stub";
       if ((mask & 1) == 1) {
         List<String> annos = annoProvider.fun(i);
         for (String s : annos) {
           if (s.startsWith("kotlin.")) continue;
-          sb.append("@").append(shortener.fun(s)).append(" ");
+          sb.append("@").append(shortener.shorten(s)).append(" ");
         }
-        sb.append(shortener.fun(type));
+        sb.append(shortener.shorten(type));
       }
       if ((mask & 3) == 3) sb.append(" ");
       if ((mask & 2) == 2) sb.append(name);
@@ -927,7 +907,7 @@ public class ParserGeneratorUtil {
     return sb.toString();
   }
 
-  public static String getGenericClauseString(List<JavaHelper.TypeParameterInfo> genericParameters, Function<String, String> shortener) {
+  public static String getGenericClauseString(List<JavaHelper.TypeParameterInfo> genericParameters, NameShortener shortener) {
     if (genericParameters.isEmpty()) return "";
 
     StringBuilder buffer = new StringBuilder();
@@ -944,7 +924,7 @@ public class ParserGeneratorUtil {
         for (int i1 = 0; i1 < extendsList.size(); i1++) {
           if (i1 > 0) buffer.append(" & ");
           String superType = extendsList.get(i1);
-          String shortened = shortener.fun(superType);
+          String shortened = shortener.shorten(superType);
           buffer.append(shortened);
         }
       }
@@ -955,10 +935,10 @@ public class ParserGeneratorUtil {
   }
 
   @NotNull
-  public static String getThrowsString(List<String> exceptionList, Function<String, String> shortener) {
+  public static String getThrowsString(List<String> exceptionList, NameShortener shortener) {
     if (exceptionList.isEmpty()) return "";
 
-    List<String> shortened = ContainerUtil.map(exceptionList, shortener);
+    List<String> shortened = ContainerUtil.map(exceptionList, shortener::shorten);
 
     StringBuilder buffer = new StringBuilder();
     buffer.append(" throws ");

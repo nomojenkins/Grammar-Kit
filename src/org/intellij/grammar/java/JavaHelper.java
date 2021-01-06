@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.java;
@@ -28,11 +16,14 @@ import com.intellij.psi.*;
 import com.intellij.psi.impl.FakePsiElement;
 import com.intellij.psi.impl.source.resolve.reference.impl.providers.JavaClassReferenceProvider;
 import com.intellij.psi.search.GlobalSearchScope;
-import com.intellij.util.ArrayUtil;
-import com.intellij.util.IncorrectOperationException;
-import com.intellij.util.ObjectUtils;
-import com.intellij.util.SmartList;
+import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
+import org.intellij.grammar.KnownAttribute;
+import org.intellij.grammar.generator.ParserGeneratorUtil;
+import org.intellij.grammar.psi.BnfAttr;
+import org.intellij.grammar.psi.BnfRule;
+import org.intellij.grammar.psi.impl.GrammarUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.org.objectweb.asm.*;
@@ -44,6 +35,8 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Type;
 import java.lang.reflect.*;
 import java.util.*;
+
+import static org.intellij.grammar.generator.ParserGeneratorUtil.getRootAttribute;
 
 /**
  * @author gregsh
@@ -112,9 +105,9 @@ public abstract class JavaHelper {
     return Collections.emptyList();
   }
 
-  @Nullable
-  public PsiReferenceProvider getClassReferenceProvider() {
-    return null;
+  @NotNull
+  public PsiReference[] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
+    return PsiReference.EMPTY_ARRAY;
   }
 
   @Nullable
@@ -141,14 +134,28 @@ public abstract class JavaHelper {
       myElementFactory = elementFactory;
     }
 
+    @NotNull
     @Override
-    public PsiReferenceProvider getClassReferenceProvider() {
+    public PsiReference[] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
+      BnfAttr bnfAttr = PsiTreeUtil.getParentOfType(element, BnfAttr.class);
+      KnownAttribute<?> attr = bnfAttr == null ? null : KnownAttribute.getAttribute(bnfAttr.getName());
       JavaClassReferenceProvider provider = new JavaClassReferenceProvider();
       provider.setOption(JavaClassReferenceProvider.ALLOW_DOLLAR_NAMES, false);
       provider.setOption(JavaClassReferenceProvider.ADVANCED_RESOLVE, true);
-      provider.setOption(JavaClassReferenceProvider.IMPORTS, Collections.singletonList(CommonClassNames.DEFAULT_PACKAGE));
+      if (attr == KnownAttribute.EXTENDS || attr == KnownAttribute.IMPLEMENTS || attr == KnownAttribute.STUB_CLASS) {
+        provider.setOption(JavaClassReferenceProvider.IMPORTS, Arrays.asList(
+          CommonClassNames.DEFAULT_PACKAGE, getRootAttribute(element, KnownAttribute.PSI_PACKAGE)));
+      }
+      else if (attr == KnownAttribute.MIXIN) {
+        provider.setOption(JavaClassReferenceProvider.IMPORTS, Arrays.asList(
+          CommonClassNames.DEFAULT_PACKAGE, getRootAttribute(element, KnownAttribute.PSI_PACKAGE),
+          getRootAttribute(element, KnownAttribute.PSI_IMPL_PACKAGE)));
+      }
+      else if (attr != null && attr.getName().endsWith("Class")) {
+        provider.setOption(JavaClassReferenceProvider.IMPORTS, Collections.singletonList(CommonClassNames.DEFAULT_PACKAGE));
+      }
       provider.setSoft(false);
-      return provider;
+      return provider.getReferencesByElement(element, context);
     }
 
     @Nullable
@@ -194,7 +201,7 @@ public abstract class JavaHelper {
       PsiClass aClass = findClassSafe(className);
       if (aClass == null) return super.findClassMethods(className, methodType, methodName, paramCount, paramTypes);
       List<NavigatablePsiElement> result = new ArrayList<>();
-      PsiMethod[] methods = methodType == MethodType.CONSTRUCTOR ? aClass.getConstructors() : aClass.getMethods();
+      PsiMethod[] methods = methodType == MethodType.CONSTRUCTOR ? aClass.getConstructors() : aClass.getMethods(); // todo super methods too
       for (PsiMethod method : methods) {
         if (!acceptsName(methodName, method.getName())) continue;
         if (!acceptsMethod(method, methodType)) continue;
@@ -216,8 +223,10 @@ public abstract class JavaHelper {
                                          PsiMethod method,
                                          int paramCount,
                                          String... paramTypes) {
+      boolean varArgs = method.isVarArgs();
       PsiParameterList parameterList = method.getParameterList();
-      if (paramCount >= 0 && paramCount != parameterList.getParametersCount()) return false;
+      if (paramCount >= 0 && (!varArgs && paramCount != parameterList.getParametersCount() ||
+                              varArgs && paramCount < parameterList.getParametersCount() - 1)) return false;
       if (paramTypes.length == 0) return true;
       if (parameterList.getParametersCount() < paramTypes.length) return false;
       PsiParameter[] psiParameters = parameterList.getParameters();
@@ -240,7 +249,7 @@ public abstract class JavaHelper {
       PsiModifierList modifierList = method.getModifierList();
       return (methodType == MethodType.STATIC) == modifierList.hasModifierProperty(PsiModifier.STATIC) &&
              !modifierList.hasModifierProperty(PsiModifier.ABSTRACT) &&
-             !(methodType == MethodType.CONSTRUCTOR && modifierList.hasModifierProperty(PsiModifier.PROTECTED));
+             !(methodType == MethodType.CONSTRUCTOR && modifierList.hasModifierProperty(PsiModifier.PRIVATE));
     }
 
     @NotNull
@@ -250,11 +259,11 @@ public abstract class JavaHelper {
       PsiMethod psiMethod = (PsiMethod)method;
       PsiType returnType = psiMethod.getReturnType();
       List<String> strings = new ArrayList<>();
-      strings.add(returnType == null ? "" : returnType.getCanonicalText());
+      strings.add(returnType == null ? "" : returnType.getCanonicalText(true));
       for (PsiParameter parameter : psiMethod.getParameterList().getParameters()) {
         PsiType type = parameter.getType();
         boolean generic = type instanceof PsiClassType && ((PsiClassType)type).resolve() instanceof PsiTypeParameter;
-        String typeText = (generic ? "<" : "") + type.getCanonicalText(false) + (generic ? ">" : "");
+        String typeText = (generic ? "<" : "") + type.getCanonicalText(true) + (generic ? ">" : "");
         strings.add(typeText);
         strings.add(parameter.getName());
       }
@@ -309,9 +318,17 @@ public abstract class JavaHelper {
     private static List<String> getAnnotationsInner(PsiModifierListOwner element) {
       PsiModifierList modifierList = element.getModifierList();
       if (modifierList == null) return Collections.emptyList();
+      PsiType typeToSkip = element instanceof PsiMethod ? ((PsiMethod)element).getReturnType() :
+                           element instanceof PsiVariable ? ((PsiVariable)element).getType() : null;
+      PsiAnnotation[] annoToSkip = typeToSkip == null ? null :
+                                   typeToSkip instanceof PsiArrayType ? ((PsiArrayType)typeToSkip).getComponentType().getAnnotations() :
+                                   typeToSkip.getAnnotations();
+      String[] textToSkip = annoToSkip == null ? null :
+                            ContainerUtil.map(annoToSkip, PsiElement::getText, ArrayUtil.EMPTY_STRING_ARRAY);
       List<String> result = new ArrayList<>();
       for (PsiAnnotation annotation : modifierList.getAnnotations()) {
         if (annotation.getParameterList().getAttributes().length > 0) continue;
+        if (textToSkip != null && ArrayUtil.indexOf(textToSkip, annotation.getText()) != - 1) continue;
         ContainerUtil.addIfNotNull(result, annotation.getQualifiedName());
       }
       return result;
@@ -470,6 +487,9 @@ public abstract class JavaHelper {
   }
 
   public static class AsmHelper extends JavaHelper {
+
+    private static final int ASM_OPCODES = Opcodes.ASM9;
+
     @Override
     public boolean isPublic(@Nullable NavigatablePsiElement element) {
       Object delegate = element instanceof MyElement ? ((MyElement)element).delegate : null;
@@ -496,7 +516,7 @@ public abstract class JavaHelper {
       ClassInfo aClass = findClassSafe(className);
       if (aClass == null || methodName == null) return Collections.emptyList();
       List<NavigatablePsiElement> result = new ArrayList<>();
-      for (MethodInfo method : aClass.methods) {
+      for (MethodInfo method : aClass.methods) { // todo super methods too
         if (!acceptsName(methodName, method.name)) continue;
         if (!acceptsMethod(method, methodType)) continue;
         if (!acceptsMethod(method, paramCount, paramTypes)) continue;
@@ -654,7 +674,7 @@ public abstract class JavaHelper {
       private final ClassInfo myInfo;
 
       MyClassVisitor(ClassInfo info) {
-        super(Opcodes.ASM5);
+        super(ASM_OPCODES);
         myInfo = info;
       }
 
@@ -670,7 +690,7 @@ public abstract class JavaHelper {
           myInfo.interfaces.add(fixClassName(s));
         }
         if (signature != null) {
-          new SignatureReader(signature).accept(new SignatureVisitor(Opcodes.ASM5) {
+          new SignatureReader(signature).accept(new SignatureVisitor(ASM_OPCODES) {
             @Override
             public void visitFormalTypeParameter(String name) {
               myInfo.typeParameters.add(name);
@@ -695,7 +715,7 @@ public abstract class JavaHelper {
                                 Modifier.isStatic(access) ? MethodType.STATIC :
                                 MethodType.INSTANCE;
         myInfo.methods.add(m);
-        return new MethodVisitor(Opcodes.ASM5) {
+        return new MethodVisitor(ASM_OPCODES) {
           @Override
           public AnnotationVisitor visitAnnotation(final String desc, boolean visible) {
             return new MyAnnotationVisitor() {
@@ -723,6 +743,12 @@ public abstract class JavaHelper {
               }
             };
           }
+
+          @Override
+          public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
+            // TODO
+            return super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
+          }
         };
       }
 
@@ -730,7 +756,7 @@ public abstract class JavaHelper {
         int annoParamCounter;
 
         MyAnnotationVisitor() {
-          super(Opcodes.ASM5);
+          super(ASM_OPCODES);
         }
 
         @Override
@@ -771,7 +797,7 @@ public abstract class JavaHelper {
       final StringBuilder sb = new StringBuilder();
 
       MySignatureVisitor(MethodInfo methodInfo) {
-        super(Opcodes.ASM5);
+        super(ASM_OPCODES);
         this.methodInfo = methodInfo;
       }
 

@@ -1,26 +1,17 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.psi.impl;
 
+import com.intellij.lang.Language;
 import com.intellij.openapi.util.Conditions;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.SyntaxTraverser;
+import com.intellij.psi.impl.source.tree.LeafPsiElement;
+import com.intellij.psi.tree.IElementType;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.PairProcessor;
 import com.intellij.util.Processor;
@@ -99,7 +90,7 @@ public class GrammarUtil {
     return expression instanceof BnfSequence ? ((BnfSequence)expression).getExpressionList() : Collections.singletonList(expression);
   }
 
-  public static List<String> collectExtraArguments(BnfRule rule, BnfExpression expression) {
+  public static List<String> collectMetaParameters(BnfRule rule, BnfExpression expression) {
     if (!ParserGeneratorUtil.Rule.isMeta(rule) && !ParserGeneratorUtil.Rule.isExternal(rule)) return Collections.emptyList();
     List<String> result = new SmartList<>();
     for (BnfExternalExpression o : bnfTraverserNoAttrs(expression).filter(BnfExternalExpression.class)) {
@@ -211,5 +202,31 @@ public class GrammarUtil {
 
   public static boolean isIdQuoted(@Nullable String text) {
     return text != null && text.startsWith("<") && text.endsWith(">");
+  }
+
+  public static class FakeElementType extends IElementType {
+    public FakeElementType(String debugName, Language language) {
+      super(debugName, language, false);
+    }
+  }
+
+  public static class FakeBnfExpression extends LeafPsiElement implements BnfExpression {
+    public FakeBnfExpression(@NotNull String text) {
+      this(BnfTypes.BNF_EXPRESSION, text);
+    }
+
+    public FakeBnfExpression(@NotNull IElementType elementType, @NotNull String text) {
+      super(elementType, text);
+    }
+
+    @Override
+    public <R> R accept(@NotNull BnfVisitor<R> visitor) {
+      return visitor.visitExpression(this);
+    }
+
+    @Override
+    public String toString() {
+      return getText();
+    }
   }
 }

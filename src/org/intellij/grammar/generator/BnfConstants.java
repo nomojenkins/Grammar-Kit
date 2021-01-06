@@ -1,17 +1,5 @@
 /*
- * Copyright 2011-present Greg Shrago
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
+ * Copyright 2011-2020 JetBrains s.r.o. Use of this source code is governed by the Apache 2.0 license that can be found in the LICENSE file.
  */
 
 package org.intellij.grammar.generator;
@@ -43,6 +31,11 @@ public interface BnfConstants {
   String AST_NODE_CLASS = "com.intellij.lang.ASTNode";
   String AST_WRAPPER_PSI_ELEMENT_CLASS = "com.intellij.extapi.psi.ASTWrapperPsiElement";
   String COMPOSITE_PSI_ELEMENT_CLASS = "com.intellij.psi.impl.source.tree.CompositePsiElement";
+
+  String OVERRIDE_ANNO = "@java.lang.Override";
+  String NOTNULL_ANNO = "@org.jetbrains.annotations.NotNull";
+  String NULLABLE_ANNO = "@org.jetbrains.annotations.Nullable";
+  String SUPPRESS_WARNINGS_ANNO = "@java.lang.SuppressWarnings";
 
   String ISTUBELEMENTTYPE_CLASS = "com.intellij.psi.stubs.IStubElementType";
   String STUB_BASED_PSI_ELEMENT = "com.intellij.psi.StubBasedPsiElement";
