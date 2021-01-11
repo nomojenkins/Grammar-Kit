@@ -486,7 +486,8 @@ public class ParserGenerator {
     for (String top : JBIterable.from(all).append(superIntf)) {
       String methodName = myIntfClassFormat.strip(StringUtil.getShortName(top));
       if (visited.contains(methodName)) continue;
-      out("public %s visit%s(%s %s o) {", t, methodName, shorten(NOTNULL_ANNO), shorten(top));
+      visited.add(methodName);
+      out("public %s visit%s(%s %s o) {", t, methodName, shorten(NOTNULL_ANNO), StringUtil.getShortName(top));
       if (!methodName.equals(StringUtil.getShortName(top)) && !top.equals(superIntf)) {
         out(ret + "visit" + myIntfClassFormat.strip(StringUtil.getShortName(superIntf)) + "(o);");
       }
@@ -1442,7 +1443,7 @@ public class ParserGenerator {
     }
     else if (nodeCall instanceof MethodCall && G.javaVersion > 6) {
       MethodCall methodCall = (MethodCall)nodeCall;
-      return () -> String.format("%s::%s", methodCall.getClassName(), methodCall.getMethodName());
+      return () -> String.format("this::%s", methodCall.getMethodName());
     }
     else {
       return () -> getParserLambdaRef(nodeCall, nextName);
