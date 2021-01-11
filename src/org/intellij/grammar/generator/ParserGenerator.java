@@ -489,7 +489,8 @@ public class ParserGenerator {
     for (String top : JBIterable.from(all).append(superIntf)) {
       String methodName = myIntfClassFormat.strip(StringUtil.getShortName(top));
       if (visited.contains(methodName)) continue;
-      out("public %s visit%s(%s %s o) {", t, methodName, shorten(NOTNULL_ANNO), shorten(top));
+      visited.add(methodName);
+      out("public %s visit%s(%s %s o) {", t, methodName, shorten(NOTNULL_ANNO), StringUtil.getShortName(top));
       if (!methodName.equals(StringUtil.getShortName(top)) && !top.equals(superIntf)) {
         out(ret + "visit" + myIntfClassFormat.strip(StringUtil.getShortName(superIntf)) + "(o);");
       }
@@ -590,7 +591,7 @@ public class ParserGenerator {
         call = generateParserInstance(body);
         reversedLambdas.put(body, name);
       }
-      out("static final Parser " + name + " = " + call + ";");
+      out("final Parser " + name + " = " + call + ";");
       myRenderedLambdas.put(name, parserClass);
     });
   }
@@ -636,7 +637,7 @@ public class ParserGenerator {
     out("public void parseLight(%s %s, %s %s) {", shortET, N.root, shortPB, N.builder);
     out("boolean %s;", N.result);
     out("%s = adapt_builder_(%s, %s, this, %s);", N.builder, N.root, N.builder, generateExtendsSets ? "EXTENDS_SETS_" : null);
-    out("%s %s = enter_section_(%s, 0, _COLLAPSE_, null);", shortMarker, N.marker, N.builder);
+    out("%s %s = enter_section_(%s, 0, _COLLAPSE_, null, null);", shortMarker, N.marker, N.builder);
     out("%s = parse_root_(%s, %s);", N.result, N.root, N.builder);
     out("exit_section_(%s, 0, %s, %s, %s, true, TRUE_CONDITION);", N.builder, N.marker, N.root, N.result);
     out("}");
@@ -645,7 +646,7 @@ public class ParserGenerator {
     out("return parse_root_(%s, %s, 0);", N.root, N.builder);
     out("}");
     newLine();
-    out("static boolean parse_root_(%s %s, %s %s, int %s) {", shortET, N.root, shortPB, N.builder, N.level);
+    out("boolean parse_root_(%s %s, %s %s, int %s) {", shortET, N.root, shortPB, N.builder, N.level);
     if (extraRoots.isEmpty()) {
       out("return %s;", rootRule == null ? "false" : generateNodeCall(rootRule, null, myGrammarRoot).render(N));
     }
@@ -849,7 +850,7 @@ public class ParserGenerator {
     String frameName = !children.isEmpty() && firstNonTrivial && !Rule.isMeta(rule) ? quote(getRuleDisplayName(rule, !isPrivate)) : null;
 
     String extraParameters = metaParameters.stream().map(it -> ", Parser " + it).collect(Collectors.joining());
-    out("%sstatic boolean %s(%s %s, int %s%s) {", !isRule ? "private " : isPrivate ? "" : "public ",
+    out("%sboolean %s(%s %s, int %s%s) {", !isRule ? "private " : isPrivate ? "" : "public ",
         funcName, shorten(PSI_BUILDER_CLASS), N.builder, N.level, extraParameters);
     if (isSingleNode) {
       if (isPrivate && !isLeftInner && recoverWhile == null && frameName == null) {
@@ -899,7 +900,7 @@ public class ParserGenerator {
     String shortMarker = !G.generateFQN ? "Marker" : PSI_BUILDER_CLASS + ".Marker";
     if (sectionRequiredSimple) {
       if (!sectionMaybeDropped) {
-        out("%s %s = enter_section_(%s);", shortMarker, N.marker, N.builder);
+        out("%s %s = enter_section_(%s, %s, %s);", shortMarker, N.marker, N.builder, N.level, elementTypeRef);
       }
     }
     else if (sectionRequired) {
@@ -1023,7 +1024,7 @@ public class ParserGenerator {
         else {
           recoverCall = null;
         }
-        out("exit_section_(%s, %s, %s, %s, %s, %s);", N.builder, N.level, N.marker, resultRef, pinnedRef, recoverCall);
+        out("exit_section_(%s, %s, %s, %s, %s, %s, %s);", N.builder, N.level, N.marker, elementTypeRef, resultRef, pinnedRef, recoverCall);
       }
     }
 
@@ -1445,7 +1446,7 @@ public class ParserGenerator {
     }
     else if (nodeCall instanceof MethodCall && G.javaVersion > 6) {
       MethodCall methodCall = (MethodCall)nodeCall;
-      return () -> String.format("%s::%s", methodCall.getClassName(), methodCall.getMethodName());
+      return () -> String.format("this::%s", methodCall.getMethodName());
     }
     else {
       return () -> getParserLambdaRef(nodeCall, nextName);
@@ -1506,6 +1507,7 @@ public class ParserGenerator {
     Set<String> imports = new LinkedHashSet<>();
     imports.add(IELEMENTTYPE_CLASS);
     if (G.generatePsi) {
+      imports.add(BnfConstants.AST_WRAPPER_PSI_ELEMENT_CLASS);
       imports.add(PSI_ELEMENT_CLASS);
       imports.add(AST_NODE_CLASS);
     }
@@ -1642,7 +1644,8 @@ public class ParserGenerator {
         out("}");
       }
       if (!first1) {
-        out("throw new AssertionError(\"Unknown element type: \" + type);");
+        out("return new ASTWrapperPsiElement(node);");
+        //out("throw new AssertionError(\"Unknown element type: \" + type);");
         out("}");
       }
       first2 = true;
@@ -1663,10 +1666,32 @@ public class ParserGenerator {
         out("}");
       }
       if (!first2) {
-        out("throw new AssertionError(\"Unknown element type: \" + type);");
+        out("return new ASTWrapperPsiElement(node);");
+        //out("throw new AssertionError(\"Unknown element type: \" + type);");
         out("}");
       }
+      //getPsiElementClassByType method
+      out("public static <T extends PsiElement> Class<T> getPsiElementClassByType(IElementType type) {");
+      out("Class<? extends PsiElement> clazz;");
+      boolean first = true;
+      for (String elementType : sortedCompositeTypes.keySet()) {
+        final BnfRule rule = sortedCompositeTypes.get(elementType);
+        String psiClass = getRulePsiClassName(rule, myImplClassFormat);
+        out((!first ? "else " : "") + "if (type == " + elementType + ") {");
+        out("clazz = " + psiClass + ".class;");
+        out("}");
+
+        first = false;
+      }
+      out("else {");
+      out("throw new AssertionError(\"Unknown element type: \" + type);");
+
       out("}");
+      out("return (Class<T>) clazz;");
+
+      out("}"); //method
+
+      out("}"); //factory
     }
     out("}");
   }
@@ -1774,6 +1799,9 @@ public class ParserGenerator {
       if (stubName != null) imports.add(stubName);
     }
 
+    boolean lazy = getAttribute(rule, KnownAttribute.LAZY);
+    if (lazy) imports.add(BnfConstants.IELEMENTTYPE_CLASS);
+    
     if (!G.generateTokenTypes) {
       // add parser static imports hoping external token constants are there
       for (RuleMethodsHelper.MethodInfo methodInfo : myRulesMethodsHelper.getFor(rule)) {
@@ -1789,7 +1817,7 @@ public class ParserGenerator {
     Java javaType = info.isAbstract ? Java.ABSTRACT_CLASS : Java.CLASS;
     generateClassHeader(psiClass, imports, "", javaType, implSuper, superInterface);
     String shortName = StringUtil.getShortName(psiClass);
-    if (constructors.isEmpty()) {
+    //if (constructors.isEmpty()) {
       out("public " + shortName + "(" + shorten(AST_NODE_CLASS) + " node) {");
       out("super(node);");
       out("}");
@@ -1802,16 +1830,22 @@ public class ParserGenerator {
         out("}");
         newLine();
       }
-    }
-    else {
-      for (NavigatablePsiElement m : constructors) {
-        List<String> types = myJavaHelper.getMethodTypes(m);
-        Function<Integer, List<String>> annoProvider = i -> myJavaHelper.getParameterAnnotations(m, (i - 1) / 2);
-        out("public " + shortName + "(" + getParametersString(types, 1, 3, substitutor, annoProvider, myShortener) + ") {");
-        out("super(" + getParametersString(types, 1, 2, substitutor, annoProvider, myShortener) + ");");
-        out("}");
-        newLine();
-      }
+    //}
+    //else {
+    //  for (NavigatablePsiElement m : constructors) {
+    //    List<String> types = myJavaHelper.getMethodTypes(m);
+    //    Function<Integer, List<String>> annoProvider = i -> myJavaHelper.getParameterAnnotations(m, (i - 1) / 2);
+    //    out("public " + shortName + "(" + getParametersString(types, 1, 3, substitutor, annoProvider, myShortener) + ") {");
+    //    out("super(" + getParametersString(types, 1, 2, substitutor, annoProvider, myShortener) + ");");
+    //    out("}");
+    //    newLine();
+    //  }
+    //}
+    if (lazy) {
+      out("public " + shortName + "(@NotNull IElementType elementType, CharSequence buffer) {");
+      out("super(elementType, buffer);");
+      out("}");
+      newLine();
     }
     if (myVisitorClassName != null) {
       String shortened = shorten(myVisitorClassName);
