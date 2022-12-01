@@ -78,8 +78,8 @@ public class BnfFirstNextTest extends BasePlatformTestCase {
     BnfFile f = (BnfFile)myFixture.configureByText("a.bnf", text);
     List<BnfRule> rules = f.getRules();
     assertFalse(rules.isEmpty());
-    BnfFirstNextAnalyzer analyzer = new BnfFirstNextAnalyzer().setPredicateLookAhead(true);
-    Set<String> strings = analyzer.asStrings(first? analyzer.calcFirst(rules.get(0)) : analyzer.calcNext(rules.get(0)).keySet());
+    BnfFirstNextAnalyzer analyzer = BnfFirstNextAnalyzer.createAnalyzer(true);
+    Set<String> strings = BnfFirstNextAnalyzer.asStrings(first ? analyzer.calcFirst(rules.get(0)) : analyzer.calcNext(rules.get(0)).keySet());
     String[] result = ArrayUtil.toStringArray(strings);
     Arrays.sort(result);
     assertOrderedEquals(result, expected);

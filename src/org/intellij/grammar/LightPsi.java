@@ -61,25 +61,21 @@ public class LightPsi {
   public static void init() {
   }
 
-  @Nullable
-  public static PsiFile parseFile(@NotNull File file, @NotNull ParserDefinition parserDefinition) throws IOException {
+  public static @Nullable PsiFile parseFile(@NotNull File file, @NotNull ParserDefinition parserDefinition) throws IOException {
     String name = file.getName();
     String text = FileUtil.loadFile(file);
     return parseFile(name, text, parserDefinition);
   }
 
-  @Nullable
-  public static PsiFile parseFile(@NotNull String name, @NotNull String text, @NotNull ParserDefinition parserDefinition) {
+  public static @Nullable PsiFile parseFile(@NotNull String name, @NotNull String text, @NotNull ParserDefinition parserDefinition) {
     return ourParsing.createFile(name, text, parserDefinition);
   }
 
-  @NotNull
-  public static ASTNode parseText(@NotNull String text, @NotNull ParserDefinition parserDefinition) {
+  public static @NotNull ASTNode parseText(@NotNull String text, @NotNull ParserDefinition parserDefinition) {
     return ourParsing.createAST(text, parserDefinition);
   }
 
-  @NotNull
-  public static SyntaxTraverser<LighterASTNode> parseLight(@NotNull String text, @NotNull ParserDefinition parserDefinition) {
+  public static @NotNull SyntaxTraverser<LighterASTNode> parseLight(@NotNull String text, @NotNull ParserDefinition parserDefinition) {
     return ourParsing.parseLight(text, parserDefinition);
   }
 
@@ -103,7 +99,7 @@ public class LightPsi {
 
   private static int mainImpl(File classesFile, File outJarFile) throws Throwable {
     BufferedReader reader = new BufferedReader(new FileReader(classesFile));
-    Pattern pattern = Pattern.compile("\\[Loaded (.*) from (?:file:)?(.*)]");
+    Pattern pattern = Pattern.compile(".*\\[class,load] (?<c>.*) source: (?:file:)?(?<f>.*)");
 
     JarOutputStream jar = new JarOutputStream(new FileOutputStream(outJarFile));
     int count = 0;
@@ -112,8 +108,8 @@ public class LightPsi {
     while ((s = reader.readLine()) != null) {
       Matcher matcher = pattern.matcher(s);
       if (!matcher.matches()) continue;
-      String className = matcher.group(1);
-      String path = matcher.group(2);
+      String className = matcher.group("c");
+      String path = matcher.group("f");
       if (!shouldAddEntry(path)) continue;
       addJarEntry(jar, className.replace(".", "/") + ".class");
       count ++;
@@ -157,8 +153,7 @@ public class LightPsi {
       Init.initExtensions(app.getApplication(), getProject());
     }
 
-    @Nullable
-    protected PsiFile createFile(@NotNull String name, @NotNull String text, @NotNull ParserDefinition definition) {
+    protected @Nullable PsiFile createFile(@NotNull String name, @NotNull String text, @NotNull ParserDefinition definition) {
       Language language = definition.getFileNodeType().getLanguage();
       Init.addKeyedExtension(LanguageParserDefinitions.INSTANCE, language, definition, this);
       MockLanguageFileType fileType = new MockLanguageFileType(language, FileUtilRt.getExtension(name));
@@ -167,16 +162,14 @@ public class LightPsi {
       return ((PsiFileFactoryImpl)PsiFileFactory.getInstance(getProject())).trySetupPsiForFile(file, language, true, false);
     }
 
-    @NotNull
-    protected ASTNode createAST(@NotNull String text, @NotNull ParserDefinition definition) {
+    protected @NotNull ASTNode createAST(@NotNull String text, @NotNull ParserDefinition definition) {
       PsiParser parser = definition.createParser(getProject());
       Lexer lexer = definition.createLexer(getProject());
       PsiBuilderImpl psiBuilder = new PsiBuilderImpl(getProject(), null, definition, lexer, new CharTableImpl(), text, null, null);
       return parser.parse(definition.getFileNodeType(), psiBuilder);
     }
 
-    @NotNull
-    protected SyntaxTraverser<LighterASTNode> parseLight(@NotNull String text, @NotNull ParserDefinition definition) {
+    protected @NotNull SyntaxTraverser<LighterASTNode> parseLight(@NotNull String text, @NotNull ParserDefinition definition) {
       LightPsiParser parser = (LightPsiParser)definition.createParser(getProject());
       Lexer lexer = definition.createLexer(getProject());
       PsiBuilderImpl psiBuilder = new PsiBuilderImpl(getProject(), null, definition, lexer, new CharTableImpl(), text, null, null);
@@ -200,7 +193,7 @@ public class LightPsi {
       ra.registerExtensionPoint("com.intellij.referencesSearch", "com.intellij.util.QueryExecutor", INTERFACE);
       ra.getExtensionPoint("com.intellij.referencesSearch").registerExtension(new CachesBasedRefSearcher(), project);
       ra.registerExtensionPoint("com.intellij.useScopeEnlarger", "com.intellij.psi.search.UseScopeEnlarger", INTERFACE);
-      ra.registerExtensionPoint("com.intellij.useScopeOptimizer", "com.intellij.psi.search.UseScopeOptimizer", INTERFACE);
+      ra.registerExtensionPoint("com.intellij.useScopeOptimizer", "com.intellij.psi.search.ScopeOptimizer", INTERFACE);
       ra.registerExtensionPoint("com.intellij.codeInsight.containerProvider", "com.intellij.codeInsight.ContainerProvider", INTERFACE);
       ra.registerExtensionPoint("com.intellij.languageInjector", "com.intellij.psi.LanguageInjector", INTERFACE);
       project.registerService(PsiSearchHelper.class, PsiSearchHelperImpl.class);
@@ -234,9 +227,9 @@ public class LightPsi {
       myExtension = extension;
     }
 
-    @NotNull @Override public String getName() { return getLanguage().getID(); }
-    @NotNull @Override public String getDescription() { return ""; }
-    @NotNull @Override public String getDefaultExtension() { return myExtension; }
+    @Override public @NotNull String getName() { return getLanguage().getID(); }
+    @Override public @NotNull String getDescription() { return ""; }
+    @Override public @NotNull String getDefaultExtension() { return myExtension; }
     @Override public Icon getIcon() { return null; }
     @Override
     public boolean equals(Object obj) {

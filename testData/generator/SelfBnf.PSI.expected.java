@@ -206,8 +206,7 @@ public interface BnfExternalExpression extends BnfExpression {
   @NotNull
   BnfExpression getRefElement();
 
-  @NotNull
-  List<BnfExpression> getArguments();
+  @NotNull List<BnfExpression> getArguments();
 
 }
 // ---- BnfListEntry.java -----------------
@@ -224,8 +223,7 @@ public interface BnfListEntry extends BnfComposite {
   @Nullable
   PsiElement getId();
 
-  @NotNull
-  PsiReference[] getReferences();
+  PsiReference @NotNull [] getReferences();
 
   @Nullable
   BnfStringLiteralExpression getLiteralExpression();
@@ -361,8 +359,7 @@ public interface BnfReferenceOrToken extends BnfExpression {
   @NotNull
   PsiElement getId();
 
-  @Nullable
-  BnfRule resolveRule();
+  @Nullable BnfRule resolveRule();
 
 }
 // ---- BnfRule.java -----------------
@@ -450,6 +447,7 @@ public class BnfAttrImpl extends BnfNamedImpl implements BnfAttr {
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitAttr(this);
   }
@@ -499,6 +497,7 @@ public class BnfAttrPatternImpl extends BnfCompositeImpl implements BnfAttrPatte
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitAttrPattern(this);
   }
@@ -536,6 +535,7 @@ public class BnfAttrsImpl extends BnfCompositeImpl implements BnfAttrs {
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitAttrs(this);
   }
@@ -611,6 +611,7 @@ public abstract class BnfExpressionImpl extends BnfCompositeImpl implements BnfE
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitExpression(this);
   }
@@ -667,8 +668,7 @@ public class BnfExternalExpressionImpl extends BnfExpressionImpl implements BnfE
   }
 
   @Override
-  @NotNull
-  public List<BnfExpression> getArguments() {
+  public @NotNull List<BnfExpression> getArguments() {
     return GrammarPsiImplUtil.getArguments(this);
   }
 
@@ -694,6 +694,7 @@ public class BnfListEntryImpl extends BnfCompositeImpl implements BnfListEntry {
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitListEntry(this);
   }
@@ -711,8 +712,7 @@ public class BnfListEntryImpl extends BnfCompositeImpl implements BnfListEntry {
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     return GrammarPsiImplUtil.getReferences(this);
   }
 
@@ -781,6 +781,7 @@ public class BnfModifierImpl extends BnfCompositeImpl implements BnfModifier {
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitModifier(this);
   }
@@ -958,6 +959,7 @@ public class BnfPredicateSignImpl extends BnfCompositeImpl implements BnfPredica
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitPredicateSign(this);
   }
@@ -1033,6 +1035,7 @@ public class BnfQuantifierImpl extends BnfCompositeImpl implements BnfQuantifier
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitQuantifier(this);
   }
@@ -1064,6 +1067,7 @@ public class BnfReferenceOrTokenImpl extends BnfRefOrTokenImpl implements BnfRef
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitReferenceOrToken(this);
   }
@@ -1101,6 +1105,7 @@ public class BnfRuleImpl extends BnfNamedImpl implements BnfRule {
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitRule(this);
   }
@@ -1194,6 +1199,7 @@ public class BnfStringLiteralExpressionImpl extends BnfStringImpl implements Bnf
     super(type);
   }
 
+  @Override
   public <R> R accept(@NotNull BnfVisitor<R> visitor) {
     return visitor.visitStringLiteralExpression(this);
   }

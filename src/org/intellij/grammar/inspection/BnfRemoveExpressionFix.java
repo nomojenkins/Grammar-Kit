@@ -20,15 +20,13 @@ import org.jetbrains.annotations.NotNull;
  * @author gregsh
  */
 public class BnfRemoveExpressionFix implements LocalQuickFix {
-  @NotNull
   @Override
-  public String getName() {
+  public @NotNull String getName() {
     return getFamilyName();
   }
 
-  @NotNull
   @Override
-  public String getFamilyName() {
+  public @NotNull String getFamilyName() {
     return "Remove expression";
   }
 
@@ -53,6 +51,6 @@ public class BnfRemoveExpressionFix implements LocalQuickFix {
     else {
       element.delete();
     }
-    BnfExpressionOptimizer.optimize(parent);
+    BnfExpressionOptimizer.optimize(project, parent);
   }
 }

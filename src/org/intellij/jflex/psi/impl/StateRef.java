@@ -4,7 +4,6 @@
 
 package org.intellij.jflex.psi.impl;
 
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Key;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.UserDataHolderEx;
@@ -27,6 +26,7 @@ import org.jetbrains.annotations.Nullable;
 
 import javax.swing.*;
 import java.util.List;
+import java.util.Objects;
 
 import static org.intellij.jflex.psi.impl.JFlexPsiImplUtil.computeDefinitions;
 
@@ -42,27 +42,25 @@ class StateRef extends PsiReferenceBase<PsiElement> {
     super(o, range);
   }
 
-  @Nullable
   @Override
-  public PsiElement resolve() {
-    final String name = getRangeInElement().substring(getElement().getText());
+  public @Nullable PsiElement resolve() {
+    String name = getRangeInElement().substring(getElement().getText());
     if (JFlexPsiImplUtil.isYYINITIAL(name)) {
       return resolveYYINITIAL(getElement());
     }
     CommonProcessors.FindFirstProcessor<JFlexStateDefinition> processor =
-      new CommonProcessors.FindFirstProcessor<JFlexStateDefinition>() {
+      new CommonProcessors.FindFirstProcessor<>() {
         @Override
         protected boolean accept(JFlexStateDefinition o) {
-          return Comparing.equal(o.getName(), name);
+          return Objects.equals(o.getName(), name);
         }
       };
     processStateVariants(getElement(), processor);
     return processor.getFoundValue();
   }
 
-  @NotNull
   @Override
-  public Object[] getVariants() {
+  public Object @NotNull [] getVariants() {
     CommonProcessors.CollectProcessor<PsiElement> processor =
       new CommonProcessors.CollectProcessor<>();
     processor.process(resolveYYINITIAL(getElement()));
@@ -71,7 +69,7 @@ class StateRef extends PsiReferenceBase<PsiElement> {
   }
 
   @Override
-  public PsiElement handleElementRename(String newElementName) throws IncorrectOperationException {
+  public PsiElement handleElementRename(@NotNull String newElementName) throws IncorrectOperationException {
     PsiElement e = getElement();
     if (e instanceof JFlexStateReference) {
       return ((JFlexStateReference)e).getId()
@@ -85,7 +83,7 @@ class StateRef extends PsiReferenceBase<PsiElement> {
   }
 
   private static boolean processStateVariants(PsiElement context, Processor<? super JFlexStateDefinition> processor) {
-    final PsiFile containingFile = context.getContainingFile();
+    PsiFile containingFile = context.getContainingFile();
     List<JFlexStateDefinition> macros = CachedValuesManager.getCachedValue(
       containingFile,
       () -> CachedValueProvider.Result.create(computeDefinitions(containingFile, JFlexStateDefinition.class), containingFile));
@@ -121,15 +119,13 @@ class StateRef extends PsiReferenceBase<PsiElement> {
       return "Initial State";
     }
 
-    @Nullable
     @Override
-    public Icon getIcon() {
+    public @Nullable Icon getIcon() {
       return null;
     }
 
-    @Nullable
     @Override
-    public PsiElement getNameIdentifier() {
+    public @Nullable PsiElement getNameIdentifier() {
       return null;
     }
   }

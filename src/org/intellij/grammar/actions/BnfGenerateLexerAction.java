@@ -16,7 +16,7 @@ import com.intellij.openapi.fileChooser.FileChooserFactory;
 import com.intellij.openapi.fileChooser.FileSaverDescriptor;
 import com.intellij.openapi.fileEditor.FileEditorManager;
 import com.intellij.openapi.fileTypes.FileTypes;
-import com.intellij.openapi.fileTypes.StdFileTypes;
+import com.intellij.openapi.fileTypes.PlainTextFileType;
 import com.intellij.openapi.fileTypes.ex.FileTypeManagerEx;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
@@ -45,6 +45,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.util.Collection;
@@ -67,13 +68,13 @@ public class BnfGenerateLexerAction extends AnAction {
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    final PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
+    PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
     if (!(file instanceof BnfFile)) return;
 
-    final Project project = file.getProject();
+    Project project = file.getProject();
 
-    final BnfFile bnfFile = (BnfFile) file;
-    final String flexFileName = getFlexFileName(bnfFile);
+    BnfFile bnfFile = (BnfFile) file;
+    String flexFileName = getFlexFileName(bnfFile);
 
     Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(project, flexFileName, ProjectScope.getAllScope(project));
     VirtualFile firstItem = ContainerUtil.getFirstItem(files);
@@ -83,7 +84,7 @@ public class BnfGenerateLexerAction extends AnAction {
     VirtualFileWrapper fileWrapper = FileChooserFactory.getInstance().createSaveFileDialog(descriptor, project).
       save(baseDir, firstItem != null ? firstItem.getName() : flexFileName);
     if (fileWrapper == null) return;
-    final VirtualFile virtualFile = fileWrapper.getVirtualFile(true);
+    VirtualFile virtualFile = fileWrapper.getVirtualFile(true);
     if (virtualFile == null) return;
 
     WriteCommandAction.runWriteCommandAction(project, () -> {
@@ -115,18 +116,18 @@ public class BnfGenerateLexerAction extends AnAction {
     String extension = virtualFile.getExtension();
     FileTypeManagerEx fileTypeManagerEx = FileTypeManagerEx.getInstanceEx();
     if (extension != null && fileTypeManagerEx.getFileTypeByExtension(extension) == FileTypes.UNKNOWN) {
-      fileTypeManagerEx.associateExtension(StdFileTypes.PLAIN_TEXT, "flex");
+      fileTypeManagerEx.associateExtension(PlainTextFileType.INSTANCE, "flex");
     }
     FileEditorManager.getInstance(project).openFile(virtualFile, false, true);
     //new OpenFileDescriptor(project, virtualFile).navigate(false);
   }
 
-  private String generateLexerText(final BnfFile bnfFile, @Nullable String packageName) {
+  private String generateLexerText(BnfFile bnfFile, @Nullable String packageName) {
     Map<String,String> tokenMap = RuleGraphHelper.getTokenNameToTextMap(bnfFile);
 
-    final int[] maxLen = {"{WHITE_SPACE}".length()};
-    final Map<String, String> simpleTokens = new LinkedHashMap<>();
-    final Map<String, String> regexpTokens = new LinkedHashMap<>();
+    int[] maxLen = {"{WHITE_SPACE}".length()};
+    Map<String, String> simpleTokens = new LinkedHashMap<>();
+    Map<String, String> regexpTokens = new LinkedHashMap<>();
     for (String name : tokenMap.keySet()) {
       String token = tokenMap.get(name);
       if (name == null || token == null) continue;
@@ -138,7 +139,7 @@ public class BnfGenerateLexerAction extends AnAction {
 
     bnfFile.acceptChildren(new PsiRecursiveElementWalkingVisitor() {
       @Override
-      public void visitElement(PsiElement element) {
+      public void visitElement(@NotNull PsiElement element) {
         if (element instanceof BnfAttrs) return;
 
         if (GrammarUtil.isExternalReference(element)) return;
@@ -170,12 +171,12 @@ public class BnfGenerateLexerAction extends AnAction {
     context.put("maxTokenLength", maxLen[0]);
 
     StringWriter out = new StringWriter();
-    ve.evaluate(context, out, "lexer.flex.template", new InputStreamReader(getClass().getResourceAsStream("/templates/lexer.flex.template")));
+    InputStream stream = getClass().getResourceAsStream("/templates/lexer.flex.template");
+    ve.evaluate(context, out, "lexer.flex.template", new InputStreamReader(stream));
     return StringUtil.convertLineSeparators(out.toString());
   }
 
-  @NotNull
-  public static String token2JFlex(@NotNull String tokenText) {
+  public static @NotNull String token2JFlex(@NotNull String tokenText) {
     if (ParserGeneratorUtil.isRegexpToken(tokenText)) {
       return javaPattern2JFlex(ParserGeneratorUtil.getRegexpTokenRegexp(tokenText));
     }
@@ -185,12 +186,12 @@ public class BnfGenerateLexerAction extends AnAction {
   }
 
   private static String javaPattern2JFlex(String javaRegexp) {
-    Matcher m = Pattern.compile("\\[(?:[^]\\\\]|\\\\.)*\\]").matcher(javaRegexp);
+    Matcher m = Pattern.compile("\\[(?:[^]\\\\]|\\\\.)*]").matcher(javaRegexp);
     int start = 0;
     StringBuilder sb = new StringBuilder();
     while (m.find(start)) {
       sb.append(text2JFlex(javaRegexp.substring(start, m.start()), true));
-      // escape only double quotes inside character class [..]
+      // escape only double quotes inside character class [...]
       sb.append(javaRegexp.substring(m.start(), m.end()).replaceAll("\"", "\\\\\""));
       start = m.end();
     }
@@ -201,8 +202,7 @@ public class BnfGenerateLexerAction extends AnAction {
   private static String text2JFlex(String text, boolean isRegexp) {
     String s;
     if (!isRegexp) {
-      s = text.replaceAll("(\"|\\\\)", "\\\\$1");
-      return s;
+      s = text.replaceAll("([\"\\\\])", "\\\\$1");
     }
     else {
       String spaces = " \\\\t\\\\n\\\\x0B\\\\f\\\\r";
@@ -214,15 +214,15 @@ public class BnfGenerateLexerAction extends AnAction {
       s = s.replaceAll("\\\\S", "[^" + spaces + "]");
       s = s.replaceAll("\\\\w", "[a-zA-Z_0-9]");
       s = s.replaceAll("\\\\W", "[^a-zA-Z_0-9]");
-      s = s.replaceAll("\\\\p\\{Space\\}", "[" + spaces + "]");
-      s = s.replaceAll("\\\\p\\{Digit\\}", "[:digit:]");
-      s = s.replaceAll("\\\\p\\{Alpha\\}", "[:letter:]");
-      s = s.replaceAll("\\\\p\\{Lower\\}", "[:lowercase:]");
-      s = s.replaceAll("\\\\p\\{Upper\\}", "[:uppercase:]");
-      s = s.replaceAll("\\\\p\\{Alnum\\}", "([:letter:]|[:digit:])");
-      s = s.replaceAll("\\\\p\\{ASCII\\}", "[\\x00-\\x7F]");
-      return s;
+      s = s.replaceAll("\\\\p\\{Space}", "[" + spaces + "]");
+      s = s.replaceAll("\\\\p\\{Digit}", "[:digit:]");
+      s = s.replaceAll("\\\\p\\{Alpha}", "[:letter:]");
+      s = s.replaceAll("\\\\p\\{Lower}", "[:lowercase:]");
+      s = s.replaceAll("\\\\p\\{Upper}", "[:uppercase:]");
+      s = s.replaceAll("\\\\p\\{Alnum}", "([:letter:]|[:digit:])");
+      s = s.replaceAll("\\\\p\\{ASCII}", "[\\x00-\\x7F]");
     }
+    return s;
   }
 
   static String getFlexFileName(BnfFile bnfFile) {

@@ -9,7 +9,6 @@ import com.intellij.codeInsight.completion.*;
 import com.intellij.codeInsight.lookup.LookupElementBuilder;
 import com.intellij.codeInsight.lookup.TailTypeDecorator;
 import com.intellij.lang.ASTNode;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.TextRange;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.patterns.PlatformPatterns;
@@ -17,7 +16,7 @@ import com.intellij.patterns.PsiElementPattern;
 import com.intellij.psi.*;
 import com.intellij.psi.impl.source.tree.TreeUtil;
 import com.intellij.psi.util.PsiTreeUtil;
-import com.intellij.psi.util.PsiUtil;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.ObjectUtils;
 import com.intellij.util.ProcessingContext;
 import com.intellij.util.containers.ContainerUtil;
@@ -35,6 +34,7 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 import static com.intellij.patterns.PlatformPatterns.psiElement;
@@ -50,10 +50,10 @@ public class BnfCompletionContributor extends CompletionContributor {
       psiElement()
         .inFile(PlatformPatterns.instanceOf(BnfFile.class))
         .andNot(psiElement().inside(PsiComment.class));
-    extend(CompletionType.BASIC, placePattern, new CompletionProvider<CompletionParameters>() {
+    extend(CompletionType.BASIC, placePattern, new CompletionProvider<>() {
       @Override
       protected void addCompletions(@NotNull CompletionParameters parameters,
-                                    ProcessingContext context,
+                                    @NotNull ProcessingContext context,
                                     @NotNull CompletionResultSet result) {
         PsiElement position = parameters.getPosition();
         BnfComposite parent = PsiTreeUtil.getParentOfType(position, BnfAttrs.class, BnfAttr.class, BnfParenExpression.class);
@@ -73,7 +73,7 @@ public class BnfCompletionContributor extends CompletionContributor {
           ASTNode closingBrace = TreeUtil.findSiblingBackward(parent.getNode().getLastChildNode(), BnfTypes.BNF_RIGHT_BRACE);
           attrCompletion = closingBrace == null || position.getTextOffset() <= closingBrace.getStartOffset();
           if (attrCompletion) {
-            for (KnownAttribute attribute : KnownAttribute.getAttributes()) {
+            for (KnownAttribute<?> attribute : KnownAttribute.getAttributes()) {
               if (inRule && attribute.isGlobal()) continue;
               result.addElement(LookupElementBuilder.create(attribute.getName()).withIcon(BnfIcons.ATTRIBUTE));
             }
@@ -86,11 +86,11 @@ public class BnfCompletionContributor extends CompletionContributor {
         }
       }
     });
-    extend(CompletionType.BASIC, placePattern.andNot(psiElement().inside(false, psiElement(BnfAttr.class))), new CompletionProvider<CompletionParameters>() {
+    extend(CompletionType.BASIC, placePattern.andNot(psiElement().inside(false, psiElement(BnfAttr.class))), new CompletionProvider<>() {
       @Override
       protected void addCompletions(@NotNull CompletionParameters parameters,
-                                    ProcessingContext context,
-                                    @NotNull final CompletionResultSet result) {
+                                    @NotNull ProcessingContext context,
+                                    @NotNull CompletionResultSet result) {
         BnfFile file = (BnfFile)parameters.getOriginalFile();
         PsiElement positionRefOrToken = PsiTreeUtil.getParentOfType(parameters.getOriginalPosition(), BnfReferenceOrToken.class);
         Set<String> explicitTokens = RuleGraphHelper.getTokenNameToTextMap(file).keySet();
@@ -108,10 +108,10 @@ public class BnfCompletionContributor extends CompletionContributor {
       }
     });
     extend(CompletionType.BASIC, placePattern.withParent(
-      psiElement(BnfExpression.class).withReference(BnfReferenceImpl.class)), new CompletionProvider<CompletionParameters>() {
+      psiElement(BnfExpression.class).withReference(BnfReferenceImpl.class)), new CompletionProvider<>() {
       @Override
       protected void addCompletions(@NotNull CompletionParameters parameters,
-                                    ProcessingContext context,
+                                    @NotNull ProcessingContext context,
                                     @NotNull CompletionResultSet result) {
         BnfFile bnfFile = (BnfFile)parameters.getOriginalFile();
         PsiElement posExpression = PsiTreeUtil.getParentOfType(parameters.getPosition(), BnfExpression.class);
@@ -125,7 +125,7 @@ public class BnfCompletionContributor extends CompletionContributor {
             .withIcon(rule.getIcon(0))
             .withBoldness(!privateRule)
             .withStrikeoutness(fakeRule);
-          if (!Comparing.equal(idText, rule.getName())) {
+          if (!Objects.equals(idText, rule.getName())) {
             e = e.withLookupString(rule.getName());
           }
           result.addElement(e);
@@ -157,7 +157,7 @@ public class BnfCompletionContributor extends CompletionContributor {
     if (file == null) return;
     int offset = context.getStartOffset();
     PsiElement element = file.findElementAt(offset);
-    if (PsiUtil.getElementType(element) == BNF_ID) {
+    if (PsiUtilCore.getElementType(element) == BNF_ID) {
       context.setDummyIdentifier("");
     }
   }
@@ -199,7 +199,7 @@ public class BnfCompletionContributor extends CompletionContributor {
     TextRange posRange = position.getTextRange();
     BnfFile posFile = (BnfFile)position.getContainingFile();
     BnfRule statement = PsiTreeUtil.getTopmostParentOfType(position, BnfRule.class);
-    final TextRange range;
+    TextRange range;
     if (statement != null) {
       range = new TextRange(statement.getTextRange().getStartOffset(), posRange.getStartOffset());
     }

@@ -26,9 +26,8 @@ import java.util.Map;
  * @author gregsh
  */
 public class BnfRecursionLineMarkerProvider implements LineMarkerProvider {
-  @Nullable
   @Override
-  public LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
+  public @Nullable LineMarkerInfo<?> getLineMarkerInfo(@NotNull PsiElement element) {
     return null;
   }
 
@@ -62,7 +61,7 @@ public class BnfRecursionLineMarkerProvider implements LineMarkerProvider {
     @Override
     public GutterIconRenderer createGutterRenderer() {
       if (myIcon == null) return null;
-      return new LineMarkerGutterIconRenderer<PsiElement>(this) {
+      return new LineMarkerGutterIconRenderer<>(this) {
         @Override
         public AnAction getClickAction() {
           return null;

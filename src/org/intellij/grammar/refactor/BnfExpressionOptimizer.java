@@ -4,6 +4,7 @@
 
 package org.intellij.grammar.refactor;
 
+import com.intellij.openapi.project.Project;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiWhiteSpace;
 import com.intellij.psi.tree.IElementType;
@@ -12,6 +13,7 @@ import org.intellij.grammar.generator.ParserGeneratorUtil;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.BnfElementFactory;
 import org.intellij.grammar.psi.impl.GrammarUtil;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.LinkedList;
 import java.util.List;
@@ -20,8 +22,8 @@ import java.util.List;
  * @author gregsh
  */
 public class BnfExpressionOptimizer {
-  public static void optimize(PsiElement element) {
-    final LinkedList<PsiElement> list = new LinkedList<>();
+  public static void optimize(@NotNull Project project, @NotNull PsiElement element) {
+    LinkedList<PsiElement> list = new LinkedList<>();
     list.add(element.getParent());
     list.add(element);
     while (!list.isEmpty()) {
@@ -31,7 +33,7 @@ public class BnfExpressionOptimizer {
         mergeChildrenTo(parent, cur, list);
       }
       else if (cur instanceof BnfParenOptExpression && isTrivialOrSingular(((BnfParenOptExpression)cur).getExpression())) {
-        // currently <expr> + ? expressions are not supported, thus:
+        // currently, <expr> + ? expressions are not supported, thus:
         BnfExpression child = ((BnfParenOptExpression)cur).getExpression();
         IElementType type = ParserGeneratorUtil.getEffectiveType(child);
         if (type == BnfTypes.BNF_OP_OPT || type == BnfTypes.BNF_OP_ZEROMORE) {
@@ -39,18 +41,18 @@ public class BnfExpressionOptimizer {
         }
         else if (type == BnfTypes.BNF_OP_ONEMORE) {
           String replacement = ((BnfQuantified)child).getExpression().getText() + "*";
-          list.add(cur.replace(BnfElementFactory.createExpressionFromText(element.getProject(), replacement)));
+          list.add(cur.replace(BnfElementFactory.createExpressionFromText(project, replacement)));
         }
         else {
           String replacement = child.getText() + "?";
-          list.add(cur.replace(BnfElementFactory.createExpressionFromText(element.getProject(), replacement)));
+          list.add(cur.replace(BnfElementFactory.createExpressionFromText(project, replacement)));
         }
       }
       else if (cur instanceof BnfChoice &&
                !(parent instanceof BnfParenthesized) &&
                (parent instanceof BnfSequence || parent instanceof BnfQuantified)) {
         String replacement = "(" + cur.getText() + ")";
-        cur.replace(BnfElementFactory.createExpressionFromText(element.getProject(), replacement));
+        cur.replace(BnfElementFactory.createExpressionFromText(project, replacement));
       }
       else if (isOptMany(cur) && isOptMany(PsiTreeUtil.getChildOfType(cur, BnfExpression.class))) {
         BnfExpression child = PsiTreeUtil.getChildOfType(cur, BnfExpression.class);
@@ -66,7 +68,7 @@ public class BnfExpressionOptimizer {
           BnfExpression childOfChild = PsiTreeUtil.getChildOfType(child, BnfExpression.class);
           String childText = childOfChild == null? "" : childOfChild.getText();
           String replacement = (child instanceof BnfParenthesized? "(" + childText + ")" : childText) + "*";
-          cur.replace(BnfElementFactory.createExpressionFromText(element.getProject(), replacement));
+          cur.replace(BnfElementFactory.createExpressionFromText(project, replacement)); //
         }
       }
     }
@@ -84,11 +86,10 @@ public class BnfExpressionOptimizer {
         return list.isEmpty() || !GrammarUtil.isExternalReference(list.get(0));
       }
     }
-    if (cur instanceof BnfChoice && parent instanceof BnfChoice) return true;
-    return false;
+    return cur instanceof BnfChoice && parent instanceof BnfChoice;
   }
 
-  private static void mergeChildrenTo(PsiElement parent, PsiElement cur, LinkedList<PsiElement> list) {
+  private static void mergeChildrenTo(PsiElement parent, PsiElement cur, List<PsiElement> list) {
     boolean skipParens = cur instanceof BnfParenthesized;
     PsiElement last = cur.getLastChild();
     PsiElement first = cur.getFirstChild();

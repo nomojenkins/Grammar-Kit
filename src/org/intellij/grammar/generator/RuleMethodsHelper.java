@@ -4,7 +4,6 @@
 
 package org.intellij.grammar.generator;
 
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.PsiElement;
@@ -68,18 +67,15 @@ public class RuleMethodsHelper {
     }
   }
 
-  @NotNull
-  public Collection<MethodInfo> getFor(@NotNull BnfRule rule) {
+  public @NotNull Collection<MethodInfo> getFor(@NotNull BnfRule rule) {
     return myMethods.get(rule).second;
   }
 
-  @Nullable
-  public MethodInfo getMethodInfo(@NotNull BnfRule rule, String name) {
+  public @Nullable MethodInfo getMethodInfo(@NotNull BnfRule rule, String name) {
     return myMethods.get(rule).first.get(name);
   }
 
-  @Nullable
-  public Collection<String> getMethodNames(@NotNull BnfRule rule) {
+  public @Nullable Collection<String> getMethodNames(@NotNull BnfRule rule) {
     return myMethods.get(rule).first.keySet();
   }
 
@@ -144,11 +140,10 @@ public class RuleMethodsHelper {
         result.add(new MethodInfo(MethodType.MIXIN, pair.first, null, null, null));
       }
     }
-    myMethods.put(rule, Pair.create(basicMethods, (Collection<MethodInfo>)result));
+    myMethods.put(rule, Pair.create(basicMethods, result));
   }
 
-  @Nullable
-  private String getRuleOrTokenNameForPsi(@NotNull PsiElement tree, @NotNull RuleGraphHelper.Cardinality type) {
+  private @Nullable String getRuleOrTokenNameForPsi(@NotNull PsiElement tree, @NotNull RuleGraphHelper.Cardinality type) {
     String result;
 
     if (!(tree instanceof BnfRule)) {
@@ -197,11 +192,10 @@ public class RuleMethodsHelper {
       return name.compareTo(o.name);
     }
 
-    @NotNull
-    public String generateGetterName() {
+    public @NotNull String generateGetterName() {
       boolean many = cardinality.many();
 
-      boolean renamed = !Comparing.equal(name, originalName);
+      boolean renamed = !Objects.equals(name, originalName);
       String getterNameBody = ParserGeneratorUtil.getGetterName(name);
       return getterNameBody + (many && !renamed ? "List" : "");
     }

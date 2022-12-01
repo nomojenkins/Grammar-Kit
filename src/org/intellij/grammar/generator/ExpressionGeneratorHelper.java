@@ -6,8 +6,8 @@ package org.intellij.grammar.generator;
 
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.util.PsiTreeUtil;
+import com.intellij.util.ArrayUtil;
 import com.intellij.util.SmartList;
-import com.intellij.util.containers.ContainerUtil;
 import gnu.trove.THashSet;
 import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.psi.BnfExpression;
@@ -30,8 +30,7 @@ public class ExpressionGeneratorHelper {
 
   private static final ConsumeType CONSUME_TYPE_OVERRIDE = ConsumeType.SMART;
 
-  @NotNull
-  private static Map<String, List<OperatorInfo>> buildCallMap(ExpressionHelper.ExpressionInfo info, ParserGenerator g) {
+  private static @NotNull Map<String, List<OperatorInfo>> buildCallMap(ExpressionHelper.ExpressionInfo info, ParserGenerator g) {
     Map<String, List<OperatorInfo>> opCalls = new LinkedHashMap<>();
     for (BnfRule rule : info.priorityMap.keySet()) {
       OperatorInfo operator = info.operatorMap.get(rule);
@@ -69,8 +68,12 @@ public class ExpressionGeneratorHelper {
 
     boolean first = true;
     for (String opCall : sortedOpCalls) {
-      OperatorInfo operator = ContainerUtil.getFirstItem(findOperators(opCalls.get(opCall), OperatorType.ATOM, OperatorType.PREFIX));
-      if (operator == null) continue;
+      List<OperatorInfo> operators = findOperators(opCalls.get(opCall), OperatorType.ATOM, OperatorType.PREFIX);
+      if (operators.isEmpty()) continue;
+      OperatorInfo operator = operators.get(0);
+      if (operators.size() > 1) {
+        g.addWarning("only first definition will be used for '" + operator.operator.getText() + "': " + operators);
+      }
       String nodeCall = g.generateNodeCall(operator.rule, null, operator.rule.getName()).render(g.N);
       g.out("%s%s = %s;", first ? "" : format("if (!%s) ", g.N.result), g.N.result, nodeCall);
       first = false;
@@ -92,9 +95,12 @@ public class ExpressionGeneratorHelper {
 
     first = true;
     for (String opCall : sortedOpCalls) {
-      OperatorInfo operator =
-        ContainerUtil.getFirstItem(findOperators(opCalls.get(opCall), OperatorType.BINARY, OperatorType.N_ARY, OperatorType.POSTFIX));
-      if (operator == null) continue;
+      List<OperatorInfo> operators = findOperators(opCalls.get(opCall), OperatorType.BINARY, OperatorType.N_ARY, OperatorType.POSTFIX);
+      if (operators.isEmpty()) continue;
+      OperatorInfo operator = operators.get(0);
+      if (operators.size() > 1) {
+        g.addWarning("only first definition will be used for '" + operator.operator.getText() + "': " + operators);
+      }
       int priority = info.getPriority(operator.rule);
       int arg2Priority = operator.arg2 == null ? -1 : info.getPriority(operator.arg2);
       int argPriority = arg2Priority == -1 ? priority : arg2Priority - 1;
@@ -197,24 +203,17 @@ public class ExpressionGeneratorHelper {
     }
   }
 
-  @NotNull
-  public static List<OperatorInfo> findOperators(Collection<OperatorInfo> list, OperatorType... types) {
+  public static @NotNull List<OperatorInfo> findOperators(Collection<OperatorInfo> list, OperatorType... types) {
     List<OperatorInfo> result = new SmartList<>();
-    List<OperatorType> typeList = Arrays.asList(types);
     for (OperatorInfo o : list) {
-      if (ContainerUtil.find(typeList, o.type) != null) {
+      if (ArrayUtil.contains(o.type, types)) {
         result.add(o);
       }
-    }
-    if (result.size() > 1) {
-      OperatorInfo info = list.iterator().next();
-      addWarning(info.rule.getProject(), "only first definition will be used for '" + info.operator.getText() + "': " + result);
     }
     return result;
   }
 
-  @Nullable
-  public static ExpressionHelper.ExpressionInfo getInfoForExpressionParsing(ExpressionHelper expressionHelper, BnfRule rule) {
+  public static @Nullable ExpressionHelper.ExpressionInfo getInfoForExpressionParsing(ExpressionHelper expressionHelper, BnfRule rule) {
     ExpressionHelper.ExpressionInfo expressionInfo = expressionHelper.getExpressionInfo(rule);
     OperatorInfo operatorInfo = expressionInfo == null ? null : expressionInfo.operatorMap.get(rule);
     if (expressionInfo != null && (operatorInfo == null || operatorInfo.type != OperatorType.ATOM &&
@@ -224,11 +223,10 @@ public class ExpressionGeneratorHelper {
     return null;
   }
 
-  @Nullable
-  public static ConsumeType fixForcedConsumeType(@NotNull ExpressionHelper expressionHelper,
-                                                 @NotNull BnfRule rule,
-                                                 @Nullable BnfExpression node,
-                                                 @Nullable ConsumeType defValue) {
+  public static @Nullable ConsumeType fixForcedConsumeType(@NotNull ExpressionHelper expressionHelper,
+                                                           @NotNull BnfRule rule,
+                                                           @Nullable BnfExpression node,
+                                                           @Nullable ConsumeType defValue) {
     if (defValue != null) return defValue;
     ExpressionHelper.ExpressionInfo expressionInfo = expressionHelper.getExpressionInfo(rule);
     ExpressionHelper.OperatorInfo operatorInfo = expressionInfo == null ? null : expressionInfo.operatorMap.get(rule);

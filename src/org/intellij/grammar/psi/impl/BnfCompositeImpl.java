@@ -20,6 +20,11 @@ public class BnfCompositeImpl extends CompositePsiElement implements BnfComposit
     super(type);
   }
 
+  @Override
+  public <R> R accept(@NotNull BnfVisitor<R> visitor) {
+    return visitor.visitComposite(this);
+  }
+
   /** @noinspection InstanceofThis*/
   @Override
   public String toString() {
@@ -28,17 +33,12 @@ public class BnfCompositeImpl extends CompositePsiElement implements BnfComposit
     if (addText) {
       String text = getText();
       if (!(this instanceof BnfLiteralExpression) && text.length() > 50) {
-        text = text.substring(0, 30) + " ... " + text.substring(text.length() - 20, text.length());
+        text = text.substring(0, 30) + " ... " + text.substring(text.length() - 20);
       }
       return elementType + (StringUtil.isEmptyOrSpaces(text)? "" : ": " + text);
     }
     else {
       return elementType;
     }
-  }
-
-  @Override
-  public <R> R accept(@NotNull BnfVisitor<R> visitor) {
-    return visitor.visitComposite(this);
   }
 }

@@ -19,11 +19,11 @@ import com.intellij.util.containers.JBIterable;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
 import org.intellij.grammar.KnownAttribute;
-import org.intellij.grammar.psi.impl.GrammarUtil.FakeBnfExpression;
 import org.intellij.grammar.generator.ParserGeneratorUtil;
 import org.intellij.grammar.generator.RuleGraphHelper;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.GrammarUtil;
+import org.intellij.grammar.psi.impl.GrammarUtil.FakeBnfExpression;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -46,29 +46,36 @@ public class BnfFirstNextAnalyzer {
   public static final BnfExpression BNF_MATCHES_NOTHING = new FakeBnfExpression(MATCHES_NOTHING);
   public static final BnfExpression BNF_MATCHES_ANY     = new FakeBnfExpression(MATCHES_ANY);
 
-  private boolean myBackward;
-  private boolean myPublicRuleOpaque;
-  private boolean myPredicateLookAhead;
-  private Condition<PsiElement> myParentFilter;
+  private final boolean myBackward;
+  private final boolean myPublicRuleOpaque;
+  private final boolean myPredicateLookAhead;
+  private final Condition<PsiElement> myParentFilter;
 
-  public BnfFirstNextAnalyzer setBackward(boolean backward) {
+  // reference search and predicates can quickly get out of control, so NEXT results need to be cached
+  private final Map<BnfExpression, Map<BnfExpression, BnfExpression>> myNextCache = new THashMap<>();
+
+  public static BnfFirstNextAnalyzer createAnalyzer(boolean predicateLookAhead) {
+    return new BnfFirstNextAnalyzer(false, false, predicateLookAhead, null);
+  }
+
+  public static BnfFirstNextAnalyzer createAnalyzer(boolean predicateLookAhead,
+                                                    boolean publicRuleOpaque,
+                                                    Condition<PsiElement> parentFilter) {
+    return new BnfFirstNextAnalyzer(false, publicRuleOpaque, predicateLookAhead, parentFilter);
+  }
+
+  public static BnfFirstNextAnalyzer createBackwardAnalyzer(boolean publicRuleOpaque) {
+    return new BnfFirstNextAnalyzer(true, publicRuleOpaque, false, null);
+  }
+
+  private BnfFirstNextAnalyzer(boolean backward,
+                               boolean publicRuleOpaque,
+                               boolean predicateLookAhead,
+                               Condition<PsiElement> parentFilter) {
     myBackward = backward;
-    return this;
-  }
-
-  public BnfFirstNextAnalyzer setPublicRuleOpaque(boolean publicRuleOpaque) {
     myPublicRuleOpaque = publicRuleOpaque;
-    return this;
-  }
-
-  public BnfFirstNextAnalyzer setParentFilter(Condition<PsiElement> parentFilter) {
-    myParentFilter = parentFilter;
-    return this;
-  }
-
-  public BnfFirstNextAnalyzer setPredicateLookAhead(boolean predicateLookAhead) {
     myPredicateLookAhead = predicateLookAhead;
-    return this;
+    myParentFilter = parentFilter;
   }
 
   public Set<BnfExpression> calcFirst(@NotNull BnfRule rule) {
@@ -78,8 +85,8 @@ public class BnfFirstNextAnalyzer {
     return calcFirstInner(expression, new THashSet<>(), visited);
   }
 
-  public Set<BnfExpression> calcFirst(@NotNull BnfExpression expressions) {
-    return calcFirstInner(expressions, new THashSet<>(), new THashSet<>());
+  public Set<BnfExpression> calcFirst(@NotNull BnfExpression expression) {
+    return calcFirstInner(expression, new THashSet<>(), new THashSet<>());
   }
 
   public Map<BnfExpression, BnfExpression> calcNext(@NotNull BnfRule targetRule) {
@@ -93,6 +100,9 @@ public class BnfFirstNextAnalyzer {
   private Map<BnfExpression, BnfExpression> calcNextInner(@NotNull BnfExpression targetExpression,
                                                           Map<BnfExpression, BnfExpression> result,
                                                           Set<BnfExpression> visited) {
+    Map<BnfExpression, BnfExpression> cached = myNextCache.get(targetExpression);
+    if (cached != null) return cached;
+
     LinkedList<BnfExpression> stack = new LinkedList<>();
     THashSet<BnfRule> totalVisited = new THashSet<>();
     Set<BnfExpression> curResult = new THashSet<>();
@@ -154,6 +164,7 @@ public class BnfFirstNextAnalyzer {
       }
     }
     if (result.isEmpty()) result.put(BNF_MATCHES_EOF, null);
+    myNextCache.put(targetExpression, result);
     return result;
   }
 
@@ -313,7 +324,7 @@ public class BnfFirstNextAnalyzer {
         externalNext = filterExternalMethods(next);
         if (!skip) skip = !externalCond.isEmpty();
       }
-      final Set<BnfExpression> mixed;
+      Set<BnfExpression> mixed;
       if (elementType == BnfTypes.BNF_OP_AND) {
         if (forcedNext != null && forcedNext.first) {
           mixed = newExprSet(conditions);
@@ -381,7 +392,7 @@ public class BnfFirstNextAnalyzer {
     return false;
   }
 
-  public Set<String> asStrings(Set<BnfExpression> expressions) {
+  public static Set<String> asStrings(Set<BnfExpression> expressions) {
     Set<String> result = new TreeSet<>();
     for (BnfExpression expression : expressions) {
       result.add(asString(expression));
@@ -389,8 +400,7 @@ public class BnfFirstNextAnalyzer {
     return result;
   }
 
-  @NotNull
-  public static String asString(@NotNull BnfExpression expression) {
+  public static @NotNull String asString(@NotNull BnfExpression expression) {
     if (expression instanceof BnfLiteralExpression) {
       String text = expression.getText();
       return StringUtil.isQuotedString(text) ? '\'' + GrammarUtil.unquote(text) + '\'' : text;
@@ -403,25 +413,21 @@ public class BnfFirstNextAnalyzer {
     }
   }
 
-  @NotNull
-  private static Set<BnfExpression> newExprSet() {
+  private static @NotNull Set<BnfExpression> newExprSet() {
     return new THashSet<>(ParserGeneratorUtil.textStrategy());
   }
 
-  @NotNull
-  private static Set<BnfExpression> newExprSet(Collection<BnfExpression> expressions) {
+  private static @NotNull Set<BnfExpression> newExprSet(Collection<BnfExpression> expressions) {
     return new THashSet<>(expressions, ParserGeneratorUtil.textStrategy());
   }
 
-  @NotNull
-  private static Set<BnfExpression> exprSetUnion(Collection<BnfExpression> a, Collection<BnfExpression> b) {
+  private static @NotNull Set<BnfExpression> exprSetUnion(Collection<BnfExpression> a, Collection<BnfExpression> b) {
     Set<BnfExpression> result = newExprSet(a);
     result.addAll(b);
     return result;
   }
 
-  @NotNull
-  private static Set<BnfExpression> exprSetIntersection(@NotNull Set<BnfExpression> a, @NotNull Set<BnfExpression> b) {
+  private static @NotNull Set<BnfExpression> exprSetIntersection(@NotNull Set<BnfExpression> a, @NotNull Set<BnfExpression> b) {
     Set<BnfExpression> filter = newExprSet(a);
     filter.retainAll(newExprSet(b));
     Set<BnfExpression> result = union(a, b);
@@ -429,8 +435,7 @@ public class BnfFirstNextAnalyzer {
     return result;
   }
 
-  @NotNull
-  private static Set<BnfExpression> exprSetDifference(@NotNull Set<BnfExpression> a, @NotNull Set<BnfExpression> b) {
+  private static @NotNull Set<BnfExpression> exprSetDifference(@NotNull Set<BnfExpression> a, @NotNull Set<BnfExpression> b) {
     Set<BnfExpression> filter = newExprSet(a);
     filter.removeAll(newExprSet(b));
     Set<BnfExpression> result = union(a, b);

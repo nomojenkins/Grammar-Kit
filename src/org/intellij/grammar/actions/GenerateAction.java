@@ -27,7 +27,6 @@ import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
 import com.intellij.util.ExceptionUtil;
-import com.intellij.util.PathUtil;
 import com.intellij.util.containers.JBIterable;
 import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.generator.BnfConstants;
@@ -73,8 +72,7 @@ public class GenerateAction extends AnAction {
     doGenerate(project, files);
   }
 
-  @NotNull
-  private static JBIterable<VirtualFile> getFiles(@NotNull AnActionEvent e) {
+  private static @NotNull JBIterable<VirtualFile> getFiles(@NotNull AnActionEvent e) {
     Project project = e.getProject();
     JBIterable<VirtualFile> files = JBIterable.of(e.getData(LangDataKeys.VIRTUAL_FILE_ARRAY));
     if (project == null || files.isEmpty()) return JBIterable.empty();
@@ -102,7 +100,7 @@ public class GenerateAction extends AnAction {
       }
     });
 
-    ProgressManager.getInstance().run(new Task.Backgroundable(project, "Parser Generation", true, PerformInBackgroundOption.ALWAYS_BACKGROUND) {
+    ProgressManager.getInstance().run(new Task.Backgroundable(project, "Parser generation", true, PerformInBackgroundOption.ALWAYS_BACKGROUND) {
 
       final List<File> files = new ArrayList<>();
       final Set<VirtualFile> targets = new LinkedHashSet<>();
@@ -136,7 +134,7 @@ public class GenerateAction extends AnAction {
           VirtualFile file = bnfFiles.get(i);
           indicator.setFraction((double)i / l);
           indicator.setText2(file.getPath());
-          String sourcePath = FileUtil.toSystemDependentName(PathUtil.getCanonicalPath(file.getParent().getPath()));
+          String sourcePath = FileUtil.toSystemDependentName(FileUtil.toCanonicalPath(file.getParent().getPath()));
           VirtualFile target = rootMap.get(file);
           if (target == null) return;
           targets.add(target);
@@ -152,9 +150,9 @@ public class GenerateAction extends AnAction {
               if (!(bnfFile instanceof BnfFile)) return;
               ParserGenerator generator = new ParserGenerator((BnfFile)bnfFile, sourcePath, genDir.getPath(), packagePrefix) {
                 @Override
-                protected PrintWriter openOutputInner(File file) throws IOException {
+                protected PrintWriter openOutputInner(String className, File file) throws IOException {
                   files.add(file);
-                  return super.openOutputInner(file);
+                  return super.openOutputInner(className, file);
                 }
               };
               try {

@@ -18,7 +18,6 @@ import com.intellij.openapi.vfs.VfsUtil;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.search.FilenameIndex;
 import com.intellij.psi.search.ProjectScope;
-import com.intellij.util.ObjectUtils;
 import org.intellij.grammar.BnfFileType;
 import org.intellij.grammar.config.Options;
 import org.intellij.grammar.generator.BnfConstants;
@@ -29,6 +28,7 @@ import org.jetbrains.annotations.Nullable;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 
 import static com.intellij.util.ArrayUtil.getFirstElement;
 
@@ -36,12 +36,11 @@ import static com.intellij.util.ArrayUtil.getFirstElement;
  * @author gregsh
  */
 public class FileGeneratorUtil {
-  @NotNull
-  public static VirtualFile getTargetDirectoryFor(@NotNull Project project,
-                                                  @NotNull VirtualFile sourceFile,
-                                                  @Nullable String targetFile,
-                                                  @Nullable String targetPackage,
-                                                  boolean returnRoot) {
+  public static @NotNull VirtualFile getTargetDirectoryFor(@NotNull Project project,
+                                                           @NotNull VirtualFile sourceFile,
+                                                           @Nullable String targetFile,
+                                                           @Nullable String targetPackage,
+                                                           boolean returnRoot) {
     boolean hasPackage = StringUtil.isNotEmpty(targetPackage);
     ProjectRootManager rootManager = ProjectRootManager.getInstance(project);
     ProjectFileIndex fileIndex = ProjectFileIndex.SERVICE.getInstance(project);
@@ -75,7 +74,7 @@ public class FileGeneratorUtil {
     boolean preferSourceRoot = hasPackage && !preferGenRoot;
     VirtualFile[] sourceRoots = rootManager.getContentSourceRoots();
     VirtualFile[] contentRoots = rootManager.getContentRoots();
-    final VirtualFile virtualRoot = existingFileRoot != null ? existingFileRoot :
+    VirtualFile virtualRoot = existingFileRoot != null ? existingFileRoot :
                                     preferSourceRoot && fileIndex.isInSource(sourceFile) ? fileIndex.getSourceRootForFile(sourceFile) :
                                     fileIndex.isInContent(sourceFile) ? fileIndex.getContentRootForFile(sourceFile) :
                                     getFirstElement(preferSourceRoot && sourceRoots.length > 0? sourceRoots : contentRoots);
@@ -87,16 +86,16 @@ public class FileGeneratorUtil {
       String packagePrefix = StringUtil.notNullize(fileIndex.getPackageNameByDirectory(virtualRoot));
       String genDirName = Options.GEN_DIR.get();
       boolean newGenRoot = !fileIndex.isInSourceContent(virtualRoot);
-      final String relativePath = (hasPackage && newGenRoot ? genDirName + "/" + targetPackage :
-                                  hasPackage ? StringUtil.trimStart(StringUtil.trimStart(targetPackage, packagePrefix), ".") :
-                                  newGenRoot ? genDirName : "").replace('.', '/');
+      String relativePath = (hasPackage && newGenRoot ? genDirName + "/" + targetPackage :
+                             hasPackage ? StringUtil.trimStart(StringUtil.trimStart(targetPackage, packagePrefix), ".") :
+                             newGenRoot ? genDirName : "").replace('.', '/');
       if (relativePath.isEmpty()) {
         return virtualRoot;
       }
       else {
         VirtualFile result = WriteAction.compute(() -> VfsUtil.createDirectoryIfMissing(virtualRoot, relativePath));
         VfsUtil.markDirtyAndRefresh(false, true, true, result);
-        return returnRoot && newGenRoot ? ObjectUtils.assertNotNull(virtualRoot.findChild(genDirName)) :
+        return returnRoot && newGenRoot ? Objects.requireNonNull(virtualRoot.findChild(genDirName)) :
                returnRoot ? virtualRoot : result;
       }
     }

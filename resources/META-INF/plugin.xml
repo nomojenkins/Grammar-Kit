@@ -1,27 +1,15 @@
 <idea-plugin url="https://github.com/JetBrains/Grammar-Kit">
   <id>org.jetbrains.idea.grammar</id>
-  <version>2020.3.2-SNAPSHOT</version>
+  <version>2021.1.3-SNAPSHOT</version>
   <vendor>JetBrains</vendor>
-  <idea-version since-build="203.5784"/>
 
   <name>Grammar-Kit</name>
   <description>BNF Grammars and JFlex lexers editor. Readable parser/PSI code generator.</description>
 
+  <depends>com.intellij.modules.lang</depends>
   <depends optional="true" config-file="plugin-copyright.xml">com.intellij.copyright</depends>
   <depends optional="true" config-file="plugin-java.xml">com.intellij.java</depends>
   <depends optional="true" config-file="plugin-uml.xml">com.intellij.diagram</depends>
-
-  <change-notes>
-    <![CDATA[
-    <ul>
-      <li>Generator: add missing space after comma in types</li>
-      <li>Generator: fix double annotations for compiled elements (#251)</li>
-      <li>Generator: add override check if mixin present</li>
-      <li>Generator: detailed warning on incorrect method spec (#252)</li>
-    </ul>
-    <a href="https://github.com/JetBrains/Grammar-Kit/blob/master/CHANGELOG.md">Full change log...</a>
-    ]]>
-  </change-notes>
 
   <extensions defaultExtensionNs="com.intellij">
     <fileType name="BNF" implementationClass="org.intellij.grammar.BnfFileType" fieldName="INSTANCE" extensions="bnf" language="BNF"/>
@@ -117,10 +105,6 @@
     <lang.braceMatcher language="JFlex" implementationClass="org.intellij.jflex.editor.JFlexBraceMatcher"/>
     <quoteHandler fileType="JFlex" className="org.intellij.jflex.editor.JFlexQuoteHandler"/>
     <lang.psiStructureViewFactory language="JFlex" implementationClass="org.intellij.jflex.editor.JFlexStructureViewFactory"/>
-
-    <multiHostInjector implementation="org.intellij.jflex.psi.impl.JFlexJavaCodeInjector" />
-    <lang.elementManipulator forClass="org.intellij.jflex.psi.impl.JFlexJavaCodeImpl"
-                             implementationClass="org.intellij.jflex.psi.impl.JFlexJavaCodeManipulator" />
   </extensions>
   <actions>
     <group id="grammar.file.group" popup="false">

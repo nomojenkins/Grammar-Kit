@@ -13,10 +13,11 @@ import com.intellij.openapi.util.Pair;
 import com.intellij.psi.PsiElement;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiWhiteSpace;
-import com.intellij.psi.util.PsiUtil;
+import com.intellij.psi.util.PsiUtilCore;
 import com.intellij.util.IncorrectOperationException;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.BnfElementFactory;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
@@ -30,7 +31,9 @@ import java.util.Set;
 public class BnfUnwrapDescriptor implements UnwrapDescriptor, Unwrapper {
   
   @Override
-  public List<Pair<PsiElement, Unwrapper>> collectUnwrappers(Project project, Editor editor, PsiFile file) {
+  public List<Pair<PsiElement, Unwrapper>> collectUnwrappers(@NotNull Project project,
+                                                             @NotNull Editor editor,
+                                                             @NotNull PsiFile file) {
     PsiElement element = findTargetElement(editor, file);
     List<Pair<PsiElement, Unwrapper>> result = new ArrayList<>();
     while (element != null) {
@@ -53,16 +56,16 @@ public class BnfUnwrapDescriptor implements UnwrapDescriptor, Unwrapper {
   }
 
   @Override
-  public boolean isApplicableTo(PsiElement e) {
-    return e instanceof BnfParenthesized && !PsiUtil.hasErrorElementChild(e);
+  public boolean isApplicableTo(@NotNull PsiElement e) {
+    return e instanceof BnfParenthesized && !PsiUtilCore.hasErrorElementChild(e);
   }
 
   @Override
-  public void collectElementsToIgnore(PsiElement element, Set<PsiElement> result) {
+  public void collectElementsToIgnore(@NotNull PsiElement element, @NotNull Set<PsiElement> result) {
   }
 
   @Override
-  public String getDescription(PsiElement e) {
+  public @NotNull String getDescription(PsiElement e) {
     PsiElement parent = e.getParent();
     BnfQuantifier quantifier = parent instanceof BnfQuantified ? ((BnfQuantified)parent).getQuantifier() : null;
     BnfPredicateSign sign = parent instanceof BnfPredicate ? ((BnfPredicate)parent).getPredicateSign() : null;
@@ -72,7 +75,7 @@ public class BnfUnwrapDescriptor implements UnwrapDescriptor, Unwrapper {
   }
 
   @Override
-  public PsiElement collectAffectedElements(PsiElement element, List<PsiElement> toExtract) {
+  public PsiElement collectAffectedElements(@NotNull PsiElement element, @NotNull List<PsiElement> toExtract) {
     PsiElement last = element.getLastChild();
     PsiElement first = element.getFirstChild();
     if (element instanceof BnfParenthesized) {
@@ -90,12 +93,12 @@ public class BnfUnwrapDescriptor implements UnwrapDescriptor, Unwrapper {
       toExtract.add(c);
     }
     PsiElement parent = element.getParent();
-    PsiElement target = parent instanceof BnfQuantified || parent instanceof BnfPredicate? parent : element;
-    return target;
+    return parent instanceof BnfQuantified || parent instanceof BnfPredicate ? parent : element;
   }
 
   @Override
-  public List<PsiElement> unwrap(Editor editor, PsiElement element) throws IncorrectOperationException {
+  public @NotNull List<PsiElement> unwrap(@NotNull Editor editor, PsiElement element) throws IncorrectOperationException {
+    Project project = element.getProject();
     PsiElement last = element.getLastChild();
     PsiElement first = element.getFirstChild();
     if (element instanceof BnfParenthesized) {
@@ -108,15 +111,14 @@ public class BnfUnwrapDescriptor implements UnwrapDescriptor, Unwrapper {
     while (last != first && last instanceof PsiWhiteSpace) {
       last = last.getPrevSibling();
     }
-    if (first == null || last == null || first == last && last instanceof PsiWhiteSpace) return null;
+    if (first == null || last == null || first == last && last instanceof PsiWhiteSpace) return Collections.emptyList();
     PsiElement parent = element.getParent();
     PsiElement target = parent instanceof BnfQuantified || parent instanceof BnfPredicate? parent : element;
     return Collections.singletonList(target.replace(BnfElementFactory.createExpressionFromText(
-      editor.getProject(), element.getContainingFile().getText().substring(first.getTextRange().getStartOffset(), last.getTextRange().getEndOffset()))));
+      project, element.getContainingFile().getText().substring(first.getTextRange().getStartOffset(), last.getTextRange().getEndOffset()))));
   }
 
-  @Nullable
-  private static PsiElement findTargetElement(Editor editor, PsiFile file) {
+  private static @Nullable PsiElement findTargetElement(Editor editor, PsiFile file) {
     int offset = editor.getCaretModel().getOffset();
     PsiElement endElement = file.findElementAt(offset);
     SelectionModel selectionModel = editor.getSelectionModel();

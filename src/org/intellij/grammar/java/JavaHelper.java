@@ -7,9 +7,7 @@ package org.intellij.grammar.java;
 import com.intellij.codeInsight.intention.IntentionAction;
 import com.intellij.codeInsight.intention.QuickFixFactory;
 import com.intellij.navigation.NavigationItem;
-import com.intellij.openapi.components.ServiceManager;
 import com.intellij.openapi.project.IndexNotReadyException;
-import com.intellij.openapi.util.Comparing;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
@@ -19,11 +17,10 @@ import com.intellij.psi.search.GlobalSearchScope;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.*;
 import com.intellij.util.containers.ContainerUtil;
+import com.intellij.util.containers.FactoryMap;
 import org.intellij.grammar.KnownAttribute;
-import org.intellij.grammar.generator.ParserGeneratorUtil;
+import org.intellij.grammar.generator.NameShortener;
 import org.intellij.grammar.psi.BnfAttr;
-import org.intellij.grammar.psi.BnfRule;
-import org.intellij.grammar.psi.impl.GrammarUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.jetbrains.org.objectweb.asm.*;
@@ -46,39 +43,33 @@ public abstract class JavaHelper {
   public enum MethodType { STATIC, INSTANCE, CONSTRUCTOR }
 
   public static JavaHelper getJavaHelper(@NotNull PsiElement context) {
-    PsiFile file = context.getContainingFile();
-    JavaHelper service = ServiceManager.getService(file.getProject(), JavaHelper.class);
+    JavaHelper service = context.getProject().getService(JavaHelper.class);
     return service == null ? new AsmHelper() : service;
   }
 
-  @Nullable
-  public IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
+  public @Nullable IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
     return null;
   }
 
   public abstract boolean isPublic(@Nullable NavigatablePsiElement element);
 
-  @Nullable
-  public NavigatablePsiElement findClass(@Nullable String className) {
+  public @Nullable NavigatablePsiElement findClass(@Nullable String className) {
     return null;
   }
 
-  @NotNull
-  public List<NavigatablePsiElement> findClassMethods(@Nullable String className,
-                                                      @NotNull MethodType methodType,
-                                                      @Nullable String methodName,
-                                                      int paramCount,
-                                                      String... paramTypes) {
+  public @NotNull List<NavigatablePsiElement> findClassMethods(@Nullable String className,
+                                                               @NotNull MethodType methodType,
+                                                               @Nullable String methodName,
+                                                               int paramCount,
+                                                               String... paramTypes) {
     return Collections.emptyList();
   }
 
-  @Nullable
-  public String getSuperClassName(@Nullable String className) {
+  public @Nullable String getSuperClassName(@Nullable String className) {
     return null;
   }
 
-  @NotNull
-  public List<String> getMethodTypes(@Nullable NavigatablePsiElement method) {
+  public @NotNull List<String> getMethodTypes(@Nullable NavigatablePsiElement method) {
     return Collections.emptyList();
   }
 
@@ -90,28 +81,23 @@ public abstract class JavaHelper {
     return Collections.emptyList();
   }
 
-  @NotNull
-  public String getDeclaringClass(@Nullable NavigatablePsiElement method) {
+  public @NotNull String getDeclaringClass(@Nullable NavigatablePsiElement method) {
     return "";
   }
 
-  @NotNull
-  public List<String> getAnnotations(@Nullable NavigatablePsiElement element) {
+  public @NotNull List<String> getAnnotations(@Nullable NavigatablePsiElement element) {
     return Collections.emptyList();
   }
 
-  @NotNull
-  public List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
+  public @NotNull List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
     return Collections.emptyList();
   }
 
-  @NotNull
-  public PsiReference[] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
+  public PsiReference @NotNull [] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
     return PsiReference.EMPTY_ARRAY;
   }
 
-  @Nullable
-  public NavigationItem findPackage(@Nullable String packageName) {
+  public @Nullable NavigationItem findPackage(@Nullable String packageName) {
     return null;
   }
 
@@ -134,9 +120,8 @@ public abstract class JavaHelper {
       myElementFactory = elementFactory;
     }
 
-    @NotNull
     @Override
-    public PsiReference[] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
+    public PsiReference @NotNull [] getClassReferences(@NotNull PsiElement element, @NotNull ProcessingContext context) {
       BnfAttr bnfAttr = PsiTreeUtil.getParentOfType(element, BnfAttr.class);
       KnownAttribute<?> attr = bnfAttr == null ? null : KnownAttribute.getAttribute(bnfAttr.getName());
       JavaClassReferenceProvider provider = new JavaClassReferenceProvider();
@@ -158,9 +143,8 @@ public abstract class JavaHelper {
       return provider.getReferencesByElement(element, context);
     }
 
-    @Nullable
     @Override
-    public IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
+    public @Nullable IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
       return QuickFixFactory.getInstance().createCreateClassOrInterfaceFix(context, className, !intf, superClass);
     }
 
@@ -190,13 +174,12 @@ public abstract class JavaHelper {
       return myFacade.findPackage(packageName);
     }
 
-    @NotNull
     @Override
-    public List<NavigatablePsiElement> findClassMethods(@Nullable String className,
-                                                        @NotNull MethodType methodType,
-                                                        @Nullable String methodName,
-                                                        int paramCount,
-                                                        String... paramTypes) {
+    public @NotNull List<NavigatablePsiElement> findClassMethods(@Nullable String className,
+                                                                 @NotNull MethodType methodType,
+                                                                 @Nullable String methodName,
+                                                                 int paramCount,
+                                                                 String... paramTypes) {
       if (methodName == null) return Collections.emptyList();
       PsiClass aClass = findClassSafe(className);
       if (aClass == null) return super.findClassMethods(className, methodType, methodName, paramCount, paramTypes);
@@ -211,9 +194,8 @@ public abstract class JavaHelper {
       return result;
     }
 
-    @Nullable
     @Override
-    public String getSuperClassName(@Nullable String className) {
+    public @Nullable String getSuperClassName(@Nullable String className) {
       PsiClass aClass = findClassSafe(className);
       PsiClass superClass = aClass != null ? aClass.getSuperClass() : null;
       return superClass != null ? superClass.getQualifiedName() : super.getSuperClassName(className);
@@ -252,9 +234,8 @@ public abstract class JavaHelper {
              !(methodType == MethodType.CONSTRUCTOR && modifierList.hasModifierProperty(PsiModifier.PRIVATE));
     }
 
-    @NotNull
     @Override
-    public List<String> getMethodTypes(NavigatablePsiElement method) {
+    public @NotNull List<String> getMethodTypes(NavigatablePsiElement method) {
       if (!(method instanceof PsiMethod)) return super.getMethodTypes(method);
       PsiMethod psiMethod = (PsiMethod)method;
       PsiType returnType = psiMethod.getReturnType();
@@ -276,7 +257,10 @@ public abstract class JavaHelper {
 
       PsiMethod psiMethod = (PsiMethod)method;
       PsiTypeParameter[] typeParameters = psiMethod.getTypeParameters();
-      return ContainerUtil.map(typeParameters, TypeParameterInfo::new);
+      return ContainerUtil.map(typeParameters, param -> new TypeParameterInfo(
+        param.getName(),
+        ContainerUtil.map(param.getExtendsListTypes(), bound -> bound.getCanonicalText(false)),
+        getAnnotationsInner(param)));
     }
 
     @Override
@@ -288,25 +272,22 @@ public abstract class JavaHelper {
       return ContainerUtil.map(types, type -> type.getCanonicalText(false));
     }
 
-    @NotNull
     @Override
-    public String getDeclaringClass(@Nullable NavigatablePsiElement method) {
+    public @NotNull String getDeclaringClass(@Nullable NavigatablePsiElement method) {
       if (!(method instanceof PsiMethod)) return super.getDeclaringClass(method);
       PsiMethod psiMethod = (PsiMethod)method;
       PsiClass aClass = psiMethod.getContainingClass();
       return aClass == null ? "" : StringUtil.notNullize(aClass.getQualifiedName());
     }
 
-    @NotNull
     @Override
-    public List<String> getAnnotations(NavigatablePsiElement element) {
+    public @NotNull List<String> getAnnotations(NavigatablePsiElement element) {
       if (!(element instanceof PsiModifierListOwner)) return super.getAnnotations(element);
       return getAnnotationsInner((PsiModifierListOwner)element);
     }
 
-    @NotNull
     @Override
-    public List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
+    public @NotNull List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
       if (!(method instanceof PsiMethod)) return super.getParameterAnnotations(method, paramIndex);
       PsiMethod psiMethod = (PsiMethod)method;
       PsiParameter[] parameters = psiMethod.getParameterList().getParameters();
@@ -314,8 +295,7 @@ public abstract class JavaHelper {
       return getAnnotationsInner(parameters[paramIndex]);
     }
 
-    @NotNull
-    private static List<String> getAnnotationsInner(PsiModifierListOwner element) {
+    private static @NotNull List<String> getAnnotationsInner(PsiModifierListOwner element) {
       PsiModifierList modifierList = element.getModifierList();
       if (modifierList == null) return Collections.emptyList();
       PsiType typeToSkip = element instanceof PsiMethod ? ((PsiMethod)element).getReturnType() :
@@ -338,22 +318,20 @@ public abstract class JavaHelper {
   public static class ReflectionHelper extends JavaHelper {
     @Override
     public boolean isPublic(@Nullable NavigatablePsiElement element) {
-      Object delegate = element instanceof MyElement ? ((MyElement)element).delegate : null;
-      int modifiers = delegate instanceof Class ? ((Class)delegate).getModifiers() :
+      Object delegate = element instanceof MyElement ? ((MyElement<?>)element).delegate : null;
+      int modifiers = delegate instanceof Class ? ((Class<?>)delegate).getModifiers() :
                       delegate instanceof Method ? ((Method)delegate).getModifiers() :
                       0;
       return Modifier.isPublic(modifiers);
     }
 
-    @Nullable
     @Override
-    public NavigatablePsiElement findClass(String className) {
+    public @Nullable NavigatablePsiElement findClass(String className) {
       Class<?> aClass = findClassSafe(className);
-      return aClass == null ? null : new MyElement<Class>(aClass);
+      return aClass == null ? null : new MyElement<Class<?>>(aClass);
     }
 
-    @Nullable
-    private static Class<?> findClassSafe(String className) {
+    private static @Nullable Class<?> findClassSafe(String className) {
       if (className == null) return null;
       try {
         return Class.forName(className);
@@ -363,13 +341,12 @@ public abstract class JavaHelper {
       }
     }
 
-    @NotNull
     @Override
-    public List<NavigatablePsiElement> findClassMethods(@Nullable String className,
-                                                        @NotNull MethodType methodType,
-                                                        @Nullable String methodName,
-                                                        int paramCount,
-                                                        String... paramTypes) {
+    public @NotNull List<NavigatablePsiElement> findClassMethods(@Nullable String className,
+                                                                 @NotNull MethodType methodType,
+                                                                 @Nullable String methodName,
+                                                                 int paramCount,
+                                                                 String... paramTypes) {
       Class<?> aClass = findClassSafe(className);
       if (aClass == null || methodName == null) return Collections.emptyList();
       List<NavigatablePsiElement> result = new ArrayList<>();
@@ -383,9 +360,8 @@ public abstract class JavaHelper {
       return result;
     }
 
-    @Nullable
     @Override
-    public String getSuperClassName(@Nullable String className) {
+    public @Nullable String getSuperClassName(@Nullable String className) {
       Class<?> aClass = findClassSafe(className);
       Class<?> superClass = aClass == null ? null : aClass.getSuperclass();
       return superClass != null && superClass != Object.class ? superClass.getName() : null;
@@ -393,7 +369,7 @@ public abstract class JavaHelper {
 
     private static boolean acceptsMethod(Member method, int paramCount, String... paramTypes) {
       Class<?>[] parameterTypes = method instanceof Method? ((Method)method).getParameterTypes() :
-                                  method instanceof Constructor ? ((Constructor)method).getParameterTypes() :
+                                  method instanceof Constructor ? ((Constructor<?>)method).getParameterTypes() :
                                   ArrayUtil.EMPTY_CLASS_ARRAY;
       if (paramCount >= 0 && paramCount != parameterTypes.length) return false;
       if (paramTypes.length == 0) return true;
@@ -415,9 +391,8 @@ public abstract class JavaHelper {
              acceptsModifiers(modifiers, methodType);
     }
 
-    @NotNull
     @Override
-    public List<String> getMethodTypes(NavigatablePsiElement method) {
+    public @NotNull List<String> getMethodTypes(NavigatablePsiElement method) {
       if (method == null) return Collections.emptyList();
       Method delegate = ((MyElement<Method>)method).delegate;
       Type[] parameterTypes = delegate.getGenericParameterTypes();
@@ -437,7 +412,13 @@ public abstract class JavaHelper {
       Method delegate = ((MyElement<Method>)method).delegate;
 
       TypeVariable<Method>[] typeParameters = delegate.getTypeParameters();
-      return ContainerUtil.map(typeParameters, TypeParameterInfo::new);
+      return ContainerUtil.map(typeParameters, param -> new TypeParameterInfo(
+        param.getName(),
+        ContainerUtil.mapNotNull(param.getBounds(), type -> {
+          String typeName = type.getTypeName();
+          return "java.lang.Object".equals(typeName) ? null : typeName;
+        }),
+        ContainerUtil.mapNotNull(param.getAnnotations(), o -> o.annotationType().getCanonicalName())));
     }
 
     @Override
@@ -449,24 +430,21 @@ public abstract class JavaHelper {
       return ContainerUtil.map(exceptionTypes, Class::getName);
     }
 
-    @NotNull
     @Override
-    public String getDeclaringClass(@Nullable NavigatablePsiElement method) {
+    public @NotNull String getDeclaringClass(@Nullable NavigatablePsiElement method) {
       if (method == null) return "";
       return ((MyElement<Method>)method).delegate.getDeclaringClass().getName();
     }
 
-    @NotNull
     @Override
-    public List<String> getAnnotations(NavigatablePsiElement element) {
+    public @NotNull List<String> getAnnotations(NavigatablePsiElement element) {
       if (element == null) return Collections.emptyList();
       AnnotatedElement delegate = ((MyElement<AnnotatedElement>)element).delegate;
       return getAnnotationsInner(delegate);
     }
 
-    @NotNull
     @Override
-    public List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
+    public @NotNull List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
       if (method == null) return Collections.emptyList();
       Method delegate = ((MyElement<Method>)method).delegate;
       AnnotatedType[] parameterTypes = delegate.getAnnotatedParameterTypes();
@@ -474,8 +452,7 @@ public abstract class JavaHelper {
       return getAnnotationsInner(delegate);
     }
 
-    @NotNull
-    private static List<String> getAnnotationsInner(@NotNull AnnotatedElement delegate) {
+    private static @NotNull List<String> getAnnotationsInner(@NotNull AnnotatedElement delegate) {
       Annotation[] annotations = delegate.getDeclaredAnnotations();
       List<String> result = new ArrayList<>(annotations.length);
       for (Annotation annotation : annotations) {
@@ -492,27 +469,25 @@ public abstract class JavaHelper {
 
     @Override
     public boolean isPublic(@Nullable NavigatablePsiElement element) {
-      Object delegate = element instanceof MyElement ? ((MyElement)element).delegate : null;
+      Object delegate = element instanceof MyElement ? ((MyElement<?>)element).delegate : null;
       int access = delegate instanceof ClassInfo ? ((ClassInfo)delegate).modifiers :
                    delegate instanceof MethodInfo ? ((MethodInfo)delegate).modifiers :
                    0;
       return Modifier.isPublic(access);
     }
 
-    @Nullable
     @Override
-    public NavigatablePsiElement findClass(String className) {
+    public @Nullable NavigatablePsiElement findClass(String className) {
       ClassInfo info = findClassSafe(className);
       return info == null ? null : new MyElement<>(info);
     }
 
-    @NotNull
     @Override
-    public List<NavigatablePsiElement> findClassMethods(@Nullable String className,
-                                                        @NotNull MethodType methodType,
-                                                        @Nullable final String methodName,
-                                                        int paramCount,
-                                                        String... paramTypes) {
+    public @NotNull List<NavigatablePsiElement> findClassMethods(@Nullable String className,
+                                                                 @NotNull MethodType methodType,
+                                                                 @Nullable String methodName,
+                                                                 int paramCount,
+                                                                 String... paramTypes) {
       ClassInfo aClass = findClassSafe(className);
       if (aClass == null || methodName == null) return Collections.emptyList();
       List<NavigatablePsiElement> result = new ArrayList<>();
@@ -525,24 +500,23 @@ public abstract class JavaHelper {
       return result;
     }
 
-    @Nullable
     @Override
-    public String getSuperClassName(@Nullable String className) {
+    public @Nullable String getSuperClassName(@Nullable String className) {
       ClassInfo aClass = findClassSafe(className);
       return aClass == null ? null : aClass.superClass;
     }
 
     private static boolean acceptsMethod(MethodInfo method, int paramCount, String... paramTypes) {
-      if (paramCount >= 0 && paramCount + 1 != method.types.size()) return false;
+      if (paramCount >= 0 && paramCount != (method.types.size() - 1) / 2) return false;
       if (paramTypes.length == 0) return true;
-      if (paramTypes.length + 1 > method.types.size()) return false;
-      for (int i = 0; i < paramTypes.length; i++) {
+      if (paramTypes.length > (method.types.size() - 1) / 2) return false;
+      for (int i = 0; i < paramTypes.length; i ++) {
         String paramType = paramTypes[i];
-        String parameter = method.types.get(i + 1);
-        if (acceptsName(paramType, parameter)) continue;
+        String parameter = method.types.get(2 * i + 1);
+        if (acceptsName(paramType, NameShortener.getRawClassName(parameter))) continue;
         ClassInfo info = findClassSafe(paramType);
         if (info != null) {
-          if (Comparing.equal(info.superClass, parameter)) continue;
+          if (Objects.equals(info.superClass, parameter)) continue;
           if (info.interfaces.contains(parameter)) continue;
         }
         return false;
@@ -554,12 +528,11 @@ public abstract class JavaHelper {
       return method.methodType == methodType && acceptsModifiers(method.modifiers, methodType);
     }
 
-    @NotNull
     @Override
-    public List<String> getMethodTypes(NavigatablePsiElement method) {
+    public @NotNull List<String> getMethodTypes(NavigatablePsiElement method) {
       Object delegate = method == null ? null : ((MyElement<?>)method).delegate;
       if (!(delegate instanceof MethodInfo)) return Collections.emptyList();
-      return ((MethodInfo)delegate).types;
+      return ((MethodInfo)delegate).annotatedTypes;
     }
 
     @Override
@@ -576,29 +549,26 @@ public abstract class JavaHelper {
       return ((MethodInfo)delegate).exceptions;
     }
 
-    @NotNull
     @Override
-    public String getDeclaringClass(@Nullable NavigatablePsiElement method) {
+    public @NotNull String getDeclaringClass(@Nullable NavigatablePsiElement method) {
       Object delegate = method == null ? null : ((MyElement<?>)method).delegate;
       if (!(delegate instanceof MethodInfo)) return "";
       return ((MethodInfo)delegate).declaringClass;
     }
 
-    @NotNull
     @Override
-    public List<String> getAnnotations(NavigatablePsiElement element) {
+    public @NotNull List<String> getAnnotations(NavigatablePsiElement element) {
       Object delegate = element == null ? null : ((MyElement<?>)element).delegate;
       if (delegate instanceof ClassInfo) return ((ClassInfo)delegate).annotations;
-      if (delegate instanceof MethodInfo) return ((MethodInfo)delegate).annotations;
+      if (delegate instanceof MethodInfo) return ((MethodInfo)delegate).annotations.get(0);
       return Collections.emptyList();
     }
 
-    @NotNull
     @Override
-    public List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
+    public @NotNull List<String> getParameterAnnotations(@Nullable NavigatablePsiElement method, int paramIndex) {
       Object delegate = method == null ? null : ((MyElement<?>)method).delegate;
       if (!(delegate instanceof MethodInfo)) return Collections.emptyList();
-      Map<Integer, List<String>> annotations = ((MethodInfo)delegate).paramAnnotations;
+      Map<Integer, List<String>> annotations = ((MethodInfo)delegate).annotations;
       if (paramIndex < 0 || paramIndex >= annotations.size()) return Collections.emptyList();
       List<String> result = annotations.get(paramIndex);
       return result == null ? Collections.emptyList() : result;
@@ -630,14 +600,14 @@ public abstract class JavaHelper {
     }
 
     private static ClassInfo getClassInfo(String className, byte[] bytes) {
-      final ClassInfo info = new ClassInfo();
+      ClassInfo info = new ClassInfo();
       info.name = className;
       new ClassReader(bytes).accept(new MyClassVisitor(info), 0);
       return info;
     }
 
     private static MethodInfo getMethodInfo(String className, String methodName, String signature, String[] exceptions) {
-      final MethodInfo methodInfo = new MethodInfo();
+      MethodInfo methodInfo = new MethodInfo();
       methodInfo.name = methodName;
       methodInfo.declaringClass = className;
 
@@ -709,50 +679,111 @@ public abstract class JavaHelper {
                                        String desc,
                                        String signature,
                                        String[] exceptions) {
-        final MethodInfo m = getMethodInfo(myInfo.name, name, ObjectUtils.chooseNotNull(signature, desc), exceptions);
+        MethodInfo m = getMethodInfo(myInfo.name, name, ObjectUtils.chooseNotNull(signature, desc), exceptions);
         m.modifiers = access;
         m.methodType = "<init>".equals(name)? MethodType.CONSTRUCTOR :
                                 Modifier.isStatic(access) ? MethodType.STATIC :
                                 MethodType.INSTANCE;
         myInfo.methods.add(m);
+        class ParamTypeAnno { int index; String anno; TypePath path; }
+        List<ParamTypeAnno> typeAnnos = new SmartList<>();
         return new MethodVisitor(ASM_OPCODES) {
           @Override
-          public AnnotationVisitor visitAnnotation(final String desc, boolean visible) {
+          public void visitEnd() {
+            m.annotatedTypes.addAll(m.types);
+            int[] plainOffsets = new int[m.types.size()];
+            for (ParamTypeAnno ta : typeAnnos) {
+              int idx = ta.index == 0 ? 0 : 2 * (ta.index - 1) + 1;
+              String prevType = m.annotatedTypes.get(idx);
+              boolean isArray = false;
+              if (ta.path != null) {
+                isArray = true;
+                int typePtr = prevType.length();
+                for (int i = 0; i < ta.path.getLength(); i++, typePtr -= 2) {
+                  if (!(ta.path.getStep(i) == TypePath.ARRAY_ELEMENT && typePtr > 2 &&
+                        prevType.charAt(typePtr - 2) == '[' && prevType.charAt(typePtr - 1) == ']')) {
+                    isArray = false;
+                    break;
+                  }
+                }
+                if (isArray && typePtr > 2 && prevType.charAt(typePtr - 1) == ']') isArray = false;
+              }
+              if (ta.path != null && !isArray) continue;
+              int bracketIdx = prevType.indexOf('[');
+              String newType;
+              if (!isArray && bracketIdx > 0) {
+                boolean addSpace = prevType.charAt(bracketIdx - 1) != ' ';
+                newType = prevType.substring(0, bracketIdx) + (addSpace ? " " : "") + "@" + ta.anno + " " + prevType.substring(bracketIdx);
+              }
+              else {
+                int offset = plainOffsets[idx];
+                newType = prevType.substring(0, offset) + "@" + ta.anno + " " + prevType.substring(offset);
+                plainOffsets[idx] += 2 + ta.anno.length();
+              }
+              m.annotatedTypes.set(idx, newType);
+              if (isArray || bracketIdx < 1) {
+                m.annotations.get(ta.index).remove(ta.anno);
+              }
+            }
+          }
+
+          @Override
+          public AnnotationVisitor visitAnnotation(String desc, boolean visible) {
+            String anno = fixClassName(desc.substring(1, desc.length() - 1));
             return new MyAnnotationVisitor() {
               @Override
               public void visitEnd() {
-                if (annoParamCounter == 0) {
-                  m.annotations.add(fixClassName(desc.substring(1, desc.length() - 1)));
-                }
+                if (annoParamCounter != 0) return;
+                m.annotations.get(0).add(anno);
               }
             };
           }
 
           @Override
           public AnnotationVisitor visitParameterAnnotation(int parameter, String desc, boolean visible) {
+            String anno = fixClassName(desc.substring(1, desc.length() - 1));
             return new MyAnnotationVisitor() {
               @Override
               public void visitEnd() {
-                if (annoParamCounter == 0) {
-                  List<String> list = m.paramAnnotations.get(parameter);
-                  if (list == null) {
-                    m.paramAnnotations.put(parameter, list = new SmartList<>());
-                  }
-                  list.add(fixClassName(desc.substring(1, desc.length() - 1)));
-                }
+                if (annoParamCounter != 0) return;
+                m.annotations.get(parameter + 1).add(anno);
               }
             };
           }
 
           @Override
-          public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String descriptor, boolean visible) {
-            // TODO
-            return super.visitTypeAnnotation(typeRef, typePath, descriptor, visible);
+          public AnnotationVisitor visitTypeAnnotation(int typeRef, TypePath typePath, String desc, boolean visible) {
+            String anno = fixClassName(desc.substring(1, desc.length() - 1));
+            TypeReference typeReference = new TypeReference(typeRef);
+            return new MyAnnotationVisitor() {
+              @Override
+              public void visitEnd() {
+                if (annoParamCounter != 0) return;
+                if (typeReference.getSort() == TypeReference.METHOD_TYPE_PARAMETER) {
+                  m.generics.get(typeReference.getTypeParameterIndex()).getAnnotations().add(anno);
+                }
+                else if (typeReference.getSort() == TypeReference.METHOD_RETURN ||
+                         typeReference.getSort() == TypeReference.METHOD_FORMAL_PARAMETER) {
+                  ParamTypeAnno o = new ParamTypeAnno();
+                  o.index = typeReference.getSort() == TypeReference.METHOD_RETURN ? 0 : typeReference.getFormalParameterIndex() + 1;
+                  o.anno = anno;
+                  o.path = typePath;
+                  typeAnnos.add(o);
+                }
+                else if (typeReference.getSort() == TypeReference.METHOD_TYPE_PARAMETER_BOUND) {
+                  List<String> bounds = m.generics.get(typeReference.getTypeParameterIndex()).extendsList;
+                  if (typeReference.getTypeParameterBoundIndex() <= bounds.size()) {
+                    String prev = bounds.get(typeReference.getTypeParameterBoundIndex() - 1);
+                    bounds.set(typeReference.getTypeParameterBoundIndex() - 1, "@" + anno + " " + prev);
+                  }
+                }
+              }
+            };
           }
         };
       }
 
-      class MyAnnotationVisitor extends AnnotationVisitor {
+      static class MyAnnotationVisitor extends AnnotationVisitor {
         int annoParamCounter;
 
         MyAnnotationVisitor() {
@@ -884,19 +915,30 @@ public abstract class JavaHelper {
 
       @Override
       public void visitTypeArgument() {
-        states.push(State.GENERIC);
-        sb.append("<");
-      }
-
-      @Override
-      public SignatureVisitor visitTypeArgument(char c) {
-        if (states.peekFirst() == State.CLASS) {
+        if (states.peekFirst() != State.GENERIC) {
           states.push(State.GENERIC);
           sb.append("<");
         }
         else {
-          finishElement(State.GENERIC);
           sb.append(", ");
+        }
+        sb.append("?");
+      }
+
+      @Override
+      public SignatureVisitor visitTypeArgument(char c) {
+        if (states.peekFirst() != State.GENERIC) {
+          states.push(State.GENERIC);
+          sb.append("<");
+        }
+        else {
+          sb.append(", ");
+        }
+        if (c == '+') {
+          sb.append("? extends ");
+        }
+        else if (c == '-') {
+          sb.append("? super ");
         }
         return this;
       }
@@ -948,8 +990,7 @@ public abstract class JavaHelper {
         }
       }
 
-      @NotNull
-      private String sb() {
+      private @NotNull String sb() {
         String s = sb.toString();
         sb.setLength(0);
         return s;
@@ -975,7 +1016,7 @@ public abstract class JavaHelper {
       if (this == o) return true;
       if (o == null || getClass() != o.getClass()) return false;
 
-      MyElement element = (MyElement)o;
+      MyElement<?> element = (MyElement<?>)o;
 
       if (!delegate.equals(element.delegate)) return false;
 
@@ -997,10 +1038,10 @@ public abstract class JavaHelper {
     String name;
     String superClass;
     int modifiers;
-    List<String> typeParameters= new SmartList<>();
-    List<String> interfaces = new SmartList<>();
-    List<String> annotations = new SmartList<>();
-    List<MethodInfo> methods = new SmartList<>();
+    final List<String> typeParameters = new SmartList<>();
+    final List<String> interfaces = new SmartList<>();
+    final List<String> annotations = new SmartList<>();
+    final List<MethodInfo> methods = new SmartList<>();
   }
 
   private static class MethodInfo {
@@ -1008,38 +1049,33 @@ public abstract class JavaHelper {
     String name;
     String declaringClass;
     int modifiers;
-    List<String> annotations = new SmartList<>();
-    List<String> types = new SmartList<>();
-    Map<Integer, List<String>> paramAnnotations = new HashMap<>(0);
-    List<TypeParameterInfo> generics = new SmartList<>();
-    List<String> exceptions = new SmartList<>();
+    final List<String> types = new SmartList<>();
+    final List<String> annotatedTypes = new SmartList<>();
+    final Map<Integer, List<String>> annotations = FactoryMap.create(o -> new SmartList<>());
+    final List<TypeParameterInfo> generics = new SmartList<>();
+    final List<String> exceptions = new SmartList<>();
 
     @Override
     public String toString() {
-      return "MethodInfo{" + name + types + ", @" + annotations + "<" + generics + ">" + " throws " + exceptions + '}';
+      return "MethodInfo{" + name + types + ", @" + annotations.get(0) + "<" + generics + ">" + " throws " + exceptions + '}';
     }
   }
 
   public static class TypeParameterInfo {
     private final String name;
     private final List<String> extendsList;
+    private final List<String> annotations;
 
-    public TypeParameterInfo(@NotNull PsiTypeParameter parameter) {
-      name = parameter.getName();
-      extendsList = ContainerUtil.map(parameter.getExtendsListTypes(), bound -> bound.getCanonicalText(false));
-    }
-
-    public TypeParameterInfo(@NotNull TypeVariable<Method> parameter) {
-      name = parameter.getName();
-      extendsList = ContainerUtil.mapNotNull(parameter.getBounds(), type -> {
-        String typeName = type.getTypeName();
-        return "java.lang.Object".equals(typeName) ? null : typeName;
-      });
+    public TypeParameterInfo(@Nullable String name,
+                             @NotNull List<String> extendsList,
+                             @NotNull List<String> annotations) {
+      this.name = name;
+      this.extendsList = extendsList;
+      this.annotations = annotations;
     }
 
     public TypeParameterInfo(@NotNull String name) {
-      this.name = name;
-      this.extendsList = new SmartList<>();
+      this(name, new SmartList<>(), new SmartList<>());
     }
 
     public String getName() {
@@ -1048,6 +1084,10 @@ public abstract class JavaHelper {
 
     public List<String> getExtendsList() {
       return extendsList;
+    }
+
+    public List<String> getAnnotations() {
+      return annotations;
     }
   }
 }

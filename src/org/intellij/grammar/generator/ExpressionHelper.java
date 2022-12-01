@@ -27,6 +27,7 @@ import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.*;
+import java.util.function.Consumer;
 
 import static org.intellij.grammar.generator.ParserGeneratorUtil.*;
 import static org.intellij.grammar.generator.RuleGraphHelper.Cardinality.OPTIONAL;
@@ -37,26 +38,26 @@ import static org.intellij.grammar.generator.RuleGraphHelper.Cardinality.OPTIONA
 public class ExpressionHelper {
   private final BnfFile myFile;
   private final RuleGraphHelper myRuleGraph;
-  private final boolean myAddWarnings;
+  private final Consumer<String> myWarningConsumer;
 
   private final Map<BnfRule, ExpressionInfo> myExpressionMap = new THashMap<>();
   private final Map<BnfRule, BnfRule> myRootRulesMap = new THashMap<>();
 
   private static final Key<CachedValue<ExpressionHelper>> EXPRESSION_HELPER_KEY = Key.create("EXPRESSION_HELPER_KEY");
-  public static ExpressionHelper getCached(final BnfFile file) {
+  public static ExpressionHelper getCached(@NotNull BnfFile file) {
     CachedValue<ExpressionHelper> value = file.getUserData(EXPRESSION_HELPER_KEY);
     if (value == null) {
       file.putUserData(EXPRESSION_HELPER_KEY, value = CachedValuesManager.getManager(file.getProject()).createCachedValue(
-        () -> new CachedValueProvider.Result<>(new ExpressionHelper(file, RuleGraphHelper.getCached(file), false), file), false));
+        () -> new CachedValueProvider.Result<>(new ExpressionHelper(file, RuleGraphHelper.getCached(file), null), file), false));
     }
     return value.getValue();
   }
 
 
-  public ExpressionHelper(BnfFile file, RuleGraphHelper ruleGraph, boolean addWarnings) {
+  public ExpressionHelper(BnfFile file, RuleGraphHelper ruleGraph, @Nullable Consumer<String> warningConsumer) {
     myFile = file;
     myRuleGraph = ruleGraph;
-    myAddWarnings = addWarnings;
+    myWarningConsumer = warningConsumer;
     buildExpressionRules();
   }
 
@@ -65,8 +66,8 @@ public class ExpressionHelper {
   }
 
   public void addWarning(String text) {
-    if (!myAddWarnings) return;
-    ParserGeneratorUtil.addWarning(myFile.getProject(), text);
+    if (myWarningConsumer == null) return;
+    myWarningConsumer.accept(text);
   }
 
   public ExpressionInfo getExpressionInfo(BnfRule rule) {
@@ -78,13 +79,13 @@ public class ExpressionHelper {
   }
 
   private void buildExpressionRules() {
-    BnfFirstNextAnalyzer analyzer = new BnfFirstNextAnalyzer();
+    BnfFirstNextAnalyzer analyzer = BnfFirstNextAnalyzer.createAnalyzer(false);
     for (BnfRule rule : myFile.getRules()) {
       if (Rule.isPrivate(rule) || Rule.isFake(rule)) continue;
       if (myRootRulesMap.containsKey(rule)) continue;
       Map<PsiElement, RuleGraphHelper.Cardinality> contentRules = myRuleGraph.getFor(rule);
       if (!contentRules.isEmpty()) continue;
-      if (!analyzer.asStrings(analyzer.calcFirst(rule)).contains(rule.getName())) continue;
+      if (!BnfFirstNextAnalyzer.asStrings(analyzer.calcFirst(rule)).contains(rule.getName())) continue;
 
       ExpressionInfo expressionInfo = new ExpressionInfo(rule);
       addToPriorityMap(rule, myRuleGraph.getExtendsRules(rule), expressionInfo);
@@ -235,8 +236,7 @@ public class ExpressionHelper {
     expressionInfo.operatorMap.put(rule, info);
   }
 
-  @Nullable
-  private BnfRule substRule(List<BnfExpression> list, int idx, BnfRule rootRule) {
+  private @Nullable BnfRule substRule(List<BnfExpression> list, int idx, BnfRule rootRule) {
     if (idx < 0) return null;
     BnfRule rule = myFile.getRule(list.get(idx).getText());
     return rule == rootRule? null : rule;
@@ -253,14 +253,12 @@ public class ExpressionHelper {
     return result;
   }
 
-  @NotNull
-  public static List<BnfExpression> getOriginalExpressions(BnfExpression expression) {
+  public static @NotNull List<BnfExpression> getOriginalExpressions(BnfExpression expression) {
     List<BnfExpression> data = expression.getUserData(ORIGINAL_EXPRESSIONS);
     return data == null ? Collections.singletonList(expression) : data;
   }
 
-  @NotNull
-  public RuleGraphHelper.Cardinality fixCardinality(BnfRule rule, PsiElement tree, RuleGraphHelper.Cardinality type) {
+  public @NotNull RuleGraphHelper.Cardinality fixCardinality(BnfRule rule, PsiElement tree, RuleGraphHelper.Cardinality type) {
     if (type.optional()) return type;
     // in Expression parsing mode REQUIRED may go OPTIONAL
     ExpressionHelper.ExpressionInfo info = getExpressionInfo(rule);

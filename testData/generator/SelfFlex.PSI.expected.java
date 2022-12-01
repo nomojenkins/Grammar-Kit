@@ -316,8 +316,7 @@ import com.intellij.psi.PsiReference;
 
 public interface JFlexJavaType extends JFlexComposite {
 
-  @NotNull
-  PsiReference[] getReferences();
+  PsiReference @NotNull [] getReferences();
 
 }
 // ---- JFlexLexicalRulesSection.java -----------------
@@ -379,14 +378,11 @@ public interface JFlexMacroDefinition extends JFlexNamedElement {
   @NotNull
   PsiElement getId();
 
-  @NotNull
-  String getName();
+  @NotNull String getName();
 
-  @NotNull
-  PsiNameIdentifierOwner setName(String p1);
+  @NotNull PsiNameIdentifierOwner setName(String p1);
 
-  @NotNull
-  PsiElement getNameIdentifier();
+  @NotNull PsiElement getNameIdentifier();
 
 }
 // ---- JFlexMacroRefExpression.java -----------------
@@ -417,8 +413,7 @@ public interface JFlexMacroReference extends JFlexComposite {
   @NotNull
   PsiElement getId();
 
-  @NotNull
-  PsiReference getReference();
+  @NotNull PsiReference getReference();
 
 }
 // ---- JFlexNotExpression.java -----------------
@@ -556,14 +551,11 @@ public interface JFlexStateDefinition extends JFlexNamedElement {
   @NotNull
   PsiElement getId();
 
-  @NotNull
-  String getName();
+  @NotNull String getName();
 
-  @NotNull
-  PsiNameIdentifierOwner setName(String p1);
+  @NotNull PsiNameIdentifierOwner setName(String p1);
 
-  @NotNull
-  PsiElement getNameIdentifier();
+  @NotNull PsiElement getNameIdentifier();
 
 }
 // ---- JFlexStateList.java -----------------
@@ -594,8 +586,7 @@ public interface JFlexStateReference extends JFlexComposite {
   @NotNull
   PsiElement getId();
 
-  @NotNull
-  PsiReference getReference();
+  @NotNull PsiReference getReference();
 
 }
 // ---- JFlexUserCodeSection.java -----------------
@@ -644,8 +635,8 @@ public class JFlexCharRangeImpl extends JFlexClassExpressionImpl implements JFle
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitCharRange(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitCharRange(this);
   }
 
   @Override
@@ -676,8 +667,8 @@ public class JFlexChoiceExpressionImpl extends JFlexExpressionImpl implements JF
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitChoiceExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitChoiceExpression(this);
   }
 
   @Override
@@ -714,8 +705,8 @@ public class JFlexClassExpressionImpl extends JFlexExpressionImpl implements JFl
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitClassExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitClassExpression(this);
   }
 
   @Override
@@ -752,8 +743,8 @@ public class JFlexDeclarationsSectionImpl extends JFlexFileSectionImpl implement
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitDeclarationsSection(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitDeclarationsSection(this);
   }
 
   @Override
@@ -801,8 +792,9 @@ public abstract class JFlexExpressionImpl extends JFlexCompositeImpl implements 
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitExpression(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitExpression(this);
   }
 
   @Override
@@ -832,8 +824,9 @@ public class JFlexFileSectionImpl extends JFlexCompositeImpl implements JFlexFil
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitFileSection(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitFileSection(this);
   }
 
   @Override
@@ -864,8 +857,9 @@ public class JFlexJavaCodeImpl extends JFlexJavaCodeInjectionHostImpl implements
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitJavaCode(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitJavaCode(this);
   }
 
   @Override
@@ -901,8 +895,9 @@ public class JFlexJavaTypeImpl extends JFlexCompositeImpl implements JFlexJavaTy
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitJavaType(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitJavaType(this);
   }
 
   @Override
@@ -912,8 +907,7 @@ public class JFlexJavaTypeImpl extends JFlexCompositeImpl implements JFlexJavaTy
   }
 
   @Override
-  @NotNull
-  public PsiReference[] getReferences() {
+  public PsiReference @NotNull [] getReferences() {
     return JFlexPsiImplUtil.getReferences(this);
   }
 
@@ -939,8 +933,8 @@ public class JFlexLexicalRulesSectionImpl extends JFlexFileSectionImpl implement
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitLexicalRulesSection(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitLexicalRulesSection(this);
   }
 
   @Override
@@ -983,8 +977,8 @@ public class JFlexLiteralExpressionImpl extends JFlexExpressionImpl implements J
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitLiteralExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitLiteralExpression(this);
   }
 
   @Override
@@ -1014,8 +1008,9 @@ public class JFlexLookAheadImpl extends JFlexCompositeImpl implements JFlexLookA
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitLookAhead(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitLookAhead(this);
   }
 
   @Override
@@ -1052,8 +1047,9 @@ public class JFlexMacroDefinitionImpl extends JFlexCompositeImpl implements JFle
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitMacroDefinition(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitMacroDefinition(this);
   }
 
   @Override
@@ -1075,20 +1071,17 @@ public class JFlexMacroDefinitionImpl extends JFlexCompositeImpl implements JFle
   }
 
   @Override
-  @NotNull
-  public String getName() {
+  public @NotNull String getName() {
     return JFlexPsiImplUtil.getName(this);
   }
 
   @Override
-  @NotNull
-  public PsiNameIdentifierOwner setName(String p1) {
+  public @NotNull PsiNameIdentifierOwner setName(String p1) {
     return JFlexPsiImplUtil.setName(this, p1);
   }
 
   @Override
-  @NotNull
-  public PsiElement getNameIdentifier() {
+  public @NotNull PsiElement getNameIdentifier() {
     return JFlexPsiImplUtil.getNameIdentifier(this);
   }
 
@@ -1114,8 +1107,8 @@ public class JFlexMacroRefExpressionImpl extends JFlexExpressionImpl implements 
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitMacroRefExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitMacroRefExpression(this);
   }
 
   @Override
@@ -1152,8 +1145,9 @@ public class JFlexMacroReferenceImpl extends JFlexCompositeImpl implements JFlex
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitMacroReference(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitMacroReference(this);
   }
 
   @Override
@@ -1169,8 +1163,7 @@ public class JFlexMacroReferenceImpl extends JFlexCompositeImpl implements JFlex
   }
 
   @Override
-  @NotNull
-  public PsiReference getReference() {
+  public @NotNull PsiReference getReference() {
     return JFlexPsiImplUtil.getReference(this);
   }
 
@@ -1196,8 +1189,8 @@ public class JFlexNotExpressionImpl extends JFlexExpressionImpl implements JFlex
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitNotExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitNotExpression(this);
   }
 
   @Override
@@ -1233,8 +1226,9 @@ public class JFlexOptionImpl extends JFlexCompositeImpl implements JFlexOption {
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitOption(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitOption(this);
   }
 
   @Override
@@ -1265,8 +1259,8 @@ public class JFlexParenExpressionImpl extends JFlexExpressionImpl implements JFl
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitParenExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitParenExpression(this);
   }
 
   @Override
@@ -1303,8 +1297,8 @@ public class JFlexPredefinedClassExpressionImpl extends JFlexExpressionImpl impl
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitPredefinedClassExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitPredefinedClassExpression(this);
   }
 
   @Override
@@ -1335,8 +1329,8 @@ public class JFlexQuantifierExpressionImpl extends JFlexExpressionImpl implement
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitQuantifierExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitQuantifierExpression(this);
   }
 
   @Override
@@ -1372,8 +1366,9 @@ public class JFlexRuleImpl extends JFlexCompositeImpl implements JFlexRule {
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitRule(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitRule(this);
   }
 
   @Override
@@ -1440,8 +1435,8 @@ public class JFlexSequenceExpressionImpl extends JFlexExpressionImpl implements 
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitSequenceExpression(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitSequenceExpression(this);
   }
 
   @Override
@@ -1477,8 +1472,9 @@ public class JFlexStateDeclarationImpl extends JFlexCompositeImpl implements JFl
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitStateDeclaration(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitStateDeclaration(this);
   }
 
   @Override
@@ -1515,8 +1511,9 @@ public class JFlexStateDefinitionImpl extends JFlexCompositeImpl implements JFle
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitStateDefinition(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitStateDefinition(this);
   }
 
   @Override
@@ -1532,20 +1529,17 @@ public class JFlexStateDefinitionImpl extends JFlexCompositeImpl implements JFle
   }
 
   @Override
-  @NotNull
-  public String getName() {
+  public @NotNull String getName() {
     return JFlexPsiImplUtil.getName(this);
   }
 
   @Override
-  @NotNull
-  public PsiNameIdentifierOwner setName(String p1) {
+  public @NotNull PsiNameIdentifierOwner setName(String p1) {
     return JFlexPsiImplUtil.setName(this, p1);
   }
 
   @Override
-  @NotNull
-  public PsiElement getNameIdentifier() {
+  public @NotNull PsiElement getNameIdentifier() {
     return JFlexPsiImplUtil.getNameIdentifier(this);
   }
 
@@ -1570,8 +1564,9 @@ public class JFlexStateListImpl extends JFlexCompositeImpl implements JFlexState
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitStateList(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitStateList(this);
   }
 
   @Override
@@ -1608,8 +1603,9 @@ public class JFlexStateReferenceImpl extends JFlexCompositeImpl implements JFlex
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitStateReference(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitStateReference(this);
   }
 
   @Override
@@ -1625,8 +1621,7 @@ public class JFlexStateReferenceImpl extends JFlexCompositeImpl implements JFlex
   }
 
   @Override
-  @NotNull
-  public PsiReference getReference() {
+  public @NotNull PsiReference getReference() {
     return JFlexPsiImplUtil.getReference(this);
   }
 
@@ -1652,8 +1647,8 @@ public class JFlexUserCodeSectionImpl extends JFlexFileSectionImpl implements JF
   }
 
   @Override
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitUserCodeSection(this);
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitUserCodeSection(this);
   }
 
   @Override
@@ -1689,8 +1684,9 @@ public class JFlexUserValueImpl extends JFlexCompositeImpl implements JFlexUserV
     super(type);
   }
 
-  public void accept(@NotNull JFlexVisitor visitor) {
-    visitor.visitUserValue(this);
+  @Override
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitUserValue(this);
   }
 
   @Override
@@ -1707,122 +1703,123 @@ package org.intellij.jflex.psi;
 import org.jetbrains.annotations.*;
 import com.intellij.psi.PsiElementVisitor;
 
-public class JFlexVisitor extends PsiElementVisitor {
+public class JFlexVisitor<R> extends PsiElementVisitor {
 
-  public void visitCharRange(@NotNull JFlexCharRange o) {
-    visitClassExpression(o);
+  public R visitCharRange(@NotNull JFlexCharRange o) {
+    return visitClassExpression(o);
   }
 
-  public void visitChoiceExpression(@NotNull JFlexChoiceExpression o) {
-    visitExpression(o);
+  public R visitChoiceExpression(@NotNull JFlexChoiceExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitClassExpression(@NotNull JFlexClassExpression o) {
-    visitExpression(o);
+  public R visitClassExpression(@NotNull JFlexClassExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitDeclarationsSection(@NotNull JFlexDeclarationsSection o) {
-    visitFileSection(o);
+  public R visitDeclarationsSection(@NotNull JFlexDeclarationsSection o) {
+    return visitFileSection(o);
   }
 
-  public void visitExpression(@NotNull JFlexExpression o) {
-    visitComposite(o);
+  public R visitExpression(@NotNull JFlexExpression o) {
+    return visitComposite(o);
   }
 
-  public void visitFileSection(@NotNull JFlexFileSection o) {
-    visitComposite(o);
+  public R visitFileSection(@NotNull JFlexFileSection o) {
+    return visitComposite(o);
   }
 
-  public void visitJavaCode(@NotNull JFlexJavaCode o) {
-    visitComposite(o);
+  public R visitJavaCode(@NotNull JFlexJavaCode o) {
+    return visitComposite(o);
   }
 
-  public void visitJavaType(@NotNull JFlexJavaType o) {
-    visitComposite(o);
+  public R visitJavaType(@NotNull JFlexJavaType o) {
+    return visitComposite(o);
   }
 
-  public void visitLexicalRulesSection(@NotNull JFlexLexicalRulesSection o) {
-    visitFileSection(o);
+  public R visitLexicalRulesSection(@NotNull JFlexLexicalRulesSection o) {
+    return visitFileSection(o);
   }
 
-  public void visitLiteralExpression(@NotNull JFlexLiteralExpression o) {
-    visitExpression(o);
+  public R visitLiteralExpression(@NotNull JFlexLiteralExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitLookAhead(@NotNull JFlexLookAhead o) {
-    visitComposite(o);
+  public R visitLookAhead(@NotNull JFlexLookAhead o) {
+    return visitComposite(o);
   }
 
-  public void visitMacroDefinition(@NotNull JFlexMacroDefinition o) {
-    visitNamedElement(o);
+  public R visitMacroDefinition(@NotNull JFlexMacroDefinition o) {
+    return visitNamedElement(o);
   }
 
-  public void visitMacroRefExpression(@NotNull JFlexMacroRefExpression o) {
-    visitExpression(o);
+  public R visitMacroRefExpression(@NotNull JFlexMacroRefExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitMacroReference(@NotNull JFlexMacroReference o) {
-    visitComposite(o);
+  public R visitMacroReference(@NotNull JFlexMacroReference o) {
+    return visitComposite(o);
   }
 
-  public void visitNotExpression(@NotNull JFlexNotExpression o) {
-    visitExpression(o);
+  public R visitNotExpression(@NotNull JFlexNotExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitOption(@NotNull JFlexOption o) {
-    visitComposite(o);
+  public R visitOption(@NotNull JFlexOption o) {
+    return visitComposite(o);
   }
 
-  public void visitParenExpression(@NotNull JFlexParenExpression o) {
-    visitExpression(o);
+  public R visitParenExpression(@NotNull JFlexParenExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitPredefinedClassExpression(@NotNull JFlexPredefinedClassExpression o) {
-    visitExpression(o);
+  public R visitPredefinedClassExpression(@NotNull JFlexPredefinedClassExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitQuantifierExpression(@NotNull JFlexQuantifierExpression o) {
-    visitExpression(o);
+  public R visitQuantifierExpression(@NotNull JFlexQuantifierExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitRule(@NotNull JFlexRule o) {
-    visitComposite(o);
+  public R visitRule(@NotNull JFlexRule o) {
+    return visitComposite(o);
   }
 
-  public void visitSequenceExpression(@NotNull JFlexSequenceExpression o) {
-    visitExpression(o);
+  public R visitSequenceExpression(@NotNull JFlexSequenceExpression o) {
+    return visitExpression(o);
   }
 
-  public void visitStateDeclaration(@NotNull JFlexStateDeclaration o) {
-    visitComposite(o);
+  public R visitStateDeclaration(@NotNull JFlexStateDeclaration o) {
+    return visitComposite(o);
   }
 
-  public void visitStateDefinition(@NotNull JFlexStateDefinition o) {
-    visitNamedElement(o);
+  public R visitStateDefinition(@NotNull JFlexStateDefinition o) {
+    return visitNamedElement(o);
   }
 
-  public void visitStateList(@NotNull JFlexStateList o) {
-    visitComposite(o);
+  public R visitStateList(@NotNull JFlexStateList o) {
+    return visitComposite(o);
   }
 
-  public void visitStateReference(@NotNull JFlexStateReference o) {
-    visitComposite(o);
+  public R visitStateReference(@NotNull JFlexStateReference o) {
+    return visitComposite(o);
   }
 
-  public void visitUserCodeSection(@NotNull JFlexUserCodeSection o) {
-    visitFileSection(o);
+  public R visitUserCodeSection(@NotNull JFlexUserCodeSection o) {
+    return visitFileSection(o);
   }
 
-  public void visitUserValue(@NotNull JFlexUserValue o) {
-    visitComposite(o);
+  public R visitUserValue(@NotNull JFlexUserValue o) {
+    return visitComposite(o);
   }
 
-  public void visitNamedElement(@NotNull JFlexNamedElement o) {
-    visitComposite(o);
+  public R visitNamedElement(@NotNull JFlexNamedElement o) {
+    return visitComposite(o);
   }
 
-  public void visitComposite(@NotNull JFlexComposite o) {
+  public R visitComposite(@NotNull JFlexComposite o) {
     visitElement(o);
+    return null;
   }
 
 }

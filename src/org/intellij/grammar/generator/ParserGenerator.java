@@ -4,7 +4,9 @@
 
 package org.intellij.grammar.generator;
 
+import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.diagnostic.Logger;
+import com.intellij.openapi.ui.MessageType;
 import com.intellij.openapi.util.Pair;
 import com.intellij.openapi.util.Trinity;
 import com.intellij.openapi.util.io.FileUtil;
@@ -21,6 +23,7 @@ import com.intellij.util.containers.*;
 import gnu.trove.THashMap;
 import gnu.trove.THashSet;
 import org.intellij.grammar.KnownAttribute;
+import org.intellij.grammar.actions.GenerateAction;
 import org.intellij.grammar.analysis.BnfFirstNextAnalyzer;
 import org.intellij.grammar.generator.NodeCalls.*;
 import org.intellij.grammar.java.JavaHelper;
@@ -61,13 +64,6 @@ import static org.intellij.grammar.psi.BnfTypes.*;
 public class ParserGenerator {
   public static final Logger LOG = Logger.getInstance("ParserGenerator");
 
-  private static final Function<String, String> genericUnwrapper = type -> {
-    if (type.startsWith("<") && type.endsWith(">")) {
-      return type.substring(1, type.length() - 1);
-    }
-    return type;
-  };
-
   static class RuleInfo {
     final String name;
     final boolean isFake;
@@ -100,15 +96,12 @@ public class ParserGenerator {
       this.intfClass = intfPackage + "." + intfClass;
       this.implClass = implPackage + "." + implClass;
       this.mixin = mixin;
-      //this.stubName = stubName;
-      //this.classes = classes;
-      //this.mixedAST = mixedAST;
     }
   }
 
   @NotNull
   RuleInfo ruleInfo(BnfRule rule) {
-    return ObjectUtils.notNull(myRuleInfos.get(rule.getName()));
+    return Objects.requireNonNull(myRuleInfos.get(rule.getName()));
   }
 
   private final Map<String, RuleInfo> myRuleInfos = new TreeMap<>();
@@ -154,6 +147,7 @@ public class ParserGenerator {
   private final RuleGraphHelper myGraphHelper;
   private final ExpressionHelper myExpressionHelper;
   private final RuleMethodsHelper myRulesMethodsHelper;
+  private final BnfFirstNextAnalyzer myFirstNextAnalyzer;
   private final JavaHelper myJavaHelper;
 
   final Names N;
@@ -186,8 +180,9 @@ public class ParserGenerator {
 
     mySimpleTokens = new LinkedHashMap<>(RuleGraphHelper.getTokenTextToNameMap(myFile));
     myGraphHelper = RuleGraphHelper.getCached(myFile);
-    myExpressionHelper = new ExpressionHelper(myFile, myGraphHelper, true);
+    myExpressionHelper = new ExpressionHelper(myFile, myGraphHelper, this::addWarning);
     myRulesMethodsHelper = new RuleMethodsHelper(myGraphHelper, myExpressionHelper, mySimpleTokens, G);
+    myFirstNextAnalyzer = BnfFirstNextAnalyzer.createAnalyzer(true);
     myJavaHelper = JavaHelper.getJavaHelper(myFile);
 
     List<BnfRule> rules = psiFile.getRules();
@@ -294,13 +289,23 @@ public class ParserGenerator {
     }
   }
 
+  public void addWarning(String text) {
+    if (ApplicationManager.getApplication().isUnitTestMode()) {
+      //noinspection UseOfSystemOutOrSystemErr
+      System.out.println(text);
+    }
+    else {
+      GenerateAction.LOG_GROUP.createNotification(text, MessageType.WARNING).notify(myFile.getProject());
+    }
+  }
+
   private void openOutput(String className) throws IOException {
     String classNameAdjusted = myPackagePrefix.isEmpty() ? className : StringUtil.trimStart(className, myPackagePrefix + ".");
     File file = new File(myOutputPath, classNameAdjusted.replace('.', File.separatorChar) + ".java");
-    myOut = openOutputInner(file);
+    myOut = openOutputInner(className, file);
   }
 
-  protected PrintWriter openOutputInner(File file) throws IOException {
+  protected PrintWriter openOutputInner(String className, File file) throws IOException {
     //noinspection ResultOfMethodCallIgnored
     file.getParentFile().mkdirs();
     return new PrintWriter(new FileOutputStream(file), false, myFile.getVirtualFile().getCharset());
@@ -355,8 +360,7 @@ public class ParserGenerator {
     out("");
   }
 
-  @NotNull
-  public String shorten(@NotNull String s) {
+  public @NotNull String shorten(@NotNull String s) {
     return myShortener.shorten(s);
   }
 
@@ -426,11 +430,19 @@ public class ParserGenerator {
     }
   }
 
+  private void checkClassAvailability(@NotNull BnfFile file, @Nullable String className, @Nullable String description) {
+    if (StringUtil.isEmpty(className)) return;
+    if (myJavaHelper.findClass(className) == null) {
+      String tail = StringUtil.isEmpty(description) ? "" : " (" + description + ")";
+      addWarning(className + " class not found" + tail);
+    }
+  }
+
   private void generateVisitor(String psiClass, Map<String, BnfRule> sortedRules) {
     String superIntf = ObjectUtils.notNull(ContainerUtil.getFirstItem(getRootAttribute(myFile, KnownAttribute.IMPLEMENTS)),
                                            KnownAttribute.IMPLEMENTS.getDefaultValue().get(0)).second;
     Set<String> imports = new LinkedHashSet<>(Arrays.asList("org.jetbrains.annotations.*", PSI_ELEMENT_VISITOR_CLASS, superIntf));
-    MultiMap<String, String> supers = MultiMap.createSmart();
+    MultiMap<String, String> supers = new MultiMap<>();
     for (BnfRule rule : sortedRules.values()) {
       supers.putValues(rule.getName(), getSuperInterfaceNames(myFile, rule, myIntfClassFormat));
     }
@@ -560,7 +572,7 @@ public class ParserGenerator {
       generateRootParserContent();
     }
     for (String ruleName : ownRuleNames) {
-      BnfRule rule = ObjectUtils.assertNotNull(myFile.getRule(ruleName));
+      BnfRule rule = Objects.requireNonNull(myFile.getRule(ruleName));
       if (Rule.isExternal(rule) || Rule.isFake(rule)) continue;
       if (myExpressionHelper.getExpressionInfo(rule) != null) continue;
       out("/* ********************************************************** */");
@@ -596,8 +608,7 @@ public class ParserGenerator {
     });
   }
 
-  @NotNull
-  private String generateParserInstance(@NotNull String body) {
+  private @NotNull String generateParserInstance(@NotNull String body) {
     return G.javaVersion > 6
            ? format("(%s, %s) -> %s", N.builder, N.level, body)
            : format("new Parser() {\npublic boolean parse(%s %s, int %s) {\nreturn %s;\n}\n}",
@@ -612,7 +623,7 @@ public class ParserGenerator {
     BnfRule rootRule = myFile.getRule(myGrammarRoot);
     List<BnfRule> extraRoots = new ArrayList<>();
     for (String ruleName : myRuleInfos.keySet()) {
-      BnfRule rule = ObjectUtils.assertNotNull(myFile.getRule(ruleName));
+      BnfRule rule = Objects.requireNonNull(myFile.getRule(ruleName));
       if (getAttribute(rule, KnownAttribute.ELEMENT_TYPE) != null) continue;
       if (!RuleGraphHelper.hasElementType(rule)) continue;
       if (Rule.isFake(rule) || Rule.isMeta(rule)) continue;
@@ -686,8 +697,7 @@ public class ParserGenerator {
     }
   }
 
-  @NotNull
-  private List<Set<String>> buildExtendsSet(@NotNull MultiMap<BnfRule, BnfRule> map) {
+  private @NotNull List<Set<String>> buildExtendsSet(@NotNull MultiMap<BnfRule, BnfRule> map) {
     if (map.isEmpty()) return Collections.emptyList();
     List<Set<String>> result = new ArrayList<>();
     for (Map.Entry<BnfRule, Collection<BnfRule>> entry : map.entrySet()) {
@@ -818,7 +828,7 @@ public class ParserGenerator {
     boolean isRule = initialNode.getParent() == rule;
     BnfExpression node = getNonTrivialNode(initialNode);
 
-    final List<String> metaParameters = collectMetaParametersFormatted(rule, node);
+    List<String> metaParameters = collectMetaParametersFormatted(rule, node);
     if (!metaParameters.isEmpty()) {
       if (isRule && isUsedAsArgument(rule) || !isRule && isArgument(initialNode)) {
         generateMetaMethod(funcName, metaParameters, isRule);
@@ -839,7 +849,7 @@ public class ParserGenerator {
     String recoverWhile = !firstNonTrivial ? null : getAttribute(rule, KnownAttribute.RECOVER_WHILE);
     Map<String, String> hooks = firstNonTrivial ? getAttribute(rule, KnownAttribute.HOOKS).asMap() : Collections.emptyMap();
 
-    final boolean canCollapse = !isPrivate && (!isLeft || isLeftInner) && firstNonTrivial && myGraphHelper.canCollapse(rule);
+    boolean canCollapse = !isPrivate && (!isLeft || isLeftInner) && firstNonTrivial && myGraphHelper.canCollapse(rule);
 
     String elementType = getElementType(rule);
     String elementTypeRef = !isPrivate && StringUtil.isNotEmpty(elementType) ? elementType : null;
@@ -877,7 +887,7 @@ public class ParserGenerator {
 
     PinMatcher pinMatcher = new PinMatcher(rule, type, firstNonTrivial ? rule.getName() : funcName);
     boolean pinApplied = false;
-    final boolean alwaysTrue = children.isEmpty() || type == BNF_OP_OPT || type == BNF_OP_ZEROMORE;
+    boolean alwaysTrue = children.isEmpty() || type == BNF_OP_OPT || type == BNF_OP_ZEROMORE;
     boolean pinned = pinMatcher.active() && pinMatcher.shouldGenerate(children);
     if (!alwaysTrue) {
       out("boolean %s%s%s;", N.result, children.isEmpty() ? " = true" : "", pinned ? format(", %s", N.pinned) : "");
@@ -989,7 +999,7 @@ public class ParserGenerator {
         out("%s = !%s;", N.result, nodeCall.render(N));
       }
       else {
-        addWarning(myFile.getProject(), "unexpected: " + type);
+        addWarning("unexpected: " + type);
       }
     }
 
@@ -1035,9 +1045,8 @@ public class ParserGenerator {
 
   /** @noinspection StringEquality*/
   private String generateAutoRecoverCall(BnfRule rule) {
-    BnfFirstNextAnalyzer analyzer = new BnfFirstNextAnalyzer().setPredicateLookAhead(true);
-    Set<BnfExpression> nextExprSet = analyzer.calcNext(rule).keySet();
-    Set<String> nextSet = analyzer.asStrings(nextExprSet);
+    Set<BnfExpression> nextExprSet = myFirstNextAnalyzer.calcNext(rule).keySet();
+    Set<String> nextSet = BnfFirstNextAnalyzer.asStrings(nextExprSet);
     List<String> tokenTypes = new ArrayList<>(nextSet.size());
 
     for (String s : nextSet) {
@@ -1051,7 +1060,7 @@ public class ParserGenerator {
       }
       else {
         tokenTypes.clear();
-        addWarning(myFile.getProject(), rule.getName() + " #auto recovery generation failed: " + s);
+        addWarning(rule.getName() + " #auto recovery generation failed: " + s);
         break;
       }
     }
@@ -1067,8 +1076,7 @@ public class ParserGenerator {
 
   public String generateFirstCheck(BnfRule rule, String frameName, boolean skipIfOne) {
     if (G.generateFirstCheck <= 0) return frameName;
-    BnfFirstNextAnalyzer analyzer = new BnfFirstNextAnalyzer().setPredicateLookAhead(true);
-    Set<BnfExpression> firstSet = analyzer.calcFirst(rule);
+    Set<BnfExpression> firstSet = myFirstNextAnalyzer.calcFirst(rule);
     ConsumeType ruleConsumeType = getRuleConsumeType(rule, null);
     Map<String, ConsumeType> firstElementTypes = new TreeMap<>();
     for (BnfExpression expression : firstSet) {
@@ -1080,7 +1088,7 @@ public class ParserGenerator {
       String t = firstToElementType(expressionString);
       if (t == null) return frameName;
 
-      ConsumeType childConsumeType = getRuleConsumeType(ObjectUtils.notNull(Rule.of(expression)), rule);
+      ConsumeType childConsumeType = getRuleConsumeType(Objects.requireNonNull(Rule.of(expression)), rule);
       ConsumeType consumeType = ConsumeType.min(ruleConsumeType, childConsumeType);
       ConsumeType existing = firstElementTypes.get(t);
       firstElementTypes.put(t, ConsumeType.max(existing, consumeType));
@@ -1112,8 +1120,7 @@ public class ParserGenerator {
     return dropFrameName && StringUtil.isEmpty(getAttribute(rule, KnownAttribute.NAME)) ? null : frameName;
   }
 
-  @NotNull
-  private ConsumeType getRuleConsumeType(@NotNull BnfRule rule, @Nullable BnfRule contextRule) {
+  private @NotNull ConsumeType getRuleConsumeType(@NotNull BnfRule rule, @Nullable BnfRule contextRule) {
     ConsumeType forcedConsumeType = ExpressionGeneratorHelper.fixForcedConsumeType(myExpressionHelper, rule, null, null);
     if (forcedConsumeType != null && contextRule != null && myExpressionHelper.getExpressionInfo(contextRule) == null) {
       // do not force child expr consume-type in a non-expr context
@@ -1159,8 +1166,7 @@ public class ParserGenerator {
     }
   }
 
-  @NotNull
-  private List<String> collectMetaParametersFormatted(@NotNull BnfRule rule, @Nullable BnfExpression expression) {
+  private @NotNull List<String> collectMetaParametersFormatted(@NotNull BnfRule rule, @Nullable BnfExpression expression) {
     if (expression == null) return Collections.emptyList();
     return GrammarUtil.collectMetaParameters(rule, expression)
       .stream()
@@ -1168,14 +1174,12 @@ public class ParserGenerator {
       .collect(toList());
   }
 
-  @NotNull
-  private String formatMetaParamName(@NotNull String s) {
+  private @NotNull String formatMetaParamName(@NotNull String s) {
     String argName = s.trim();
     return N.metaParamPrefix + (N.metaParamPrefix.isEmpty() || "_".equals(N.metaParamPrefix) ? argName : StringUtil.capitalize(argName));
   }
 
-  @Nullable
-  private String firstToElementType(String first) {
+  private @Nullable String firstToElementType(String first) {
     if (first.startsWith("#") || first.startsWith("-") || first.startsWith("<<")) return null;
     String value = GrammarUtil.unquote(first);
     //noinspection StringEquality
@@ -1189,20 +1193,18 @@ public class ParserGenerator {
     return getElementType(first);
   }
 
-  @Nullable
-  private String getTokenName(String value) {
+  private @Nullable String getTokenName(String value) {
     return mySimpleTokens.get(value);
   }
 
-  @NotNull
-  private NodeCall generateTokenSequenceCall(List<BnfExpression> children,
-                                             int startIndex,
-                                             PinMatcher pinMatcher,
-                                             boolean pinApplied,
-                                             int[] skip,
-                                             @NotNull NodeCall nodeCall,
-                                             boolean rollbackOnFail,
-                                             ConsumeType consumeType) {
+  private @NotNull NodeCall generateTokenSequenceCall(List<BnfExpression> children,
+                                                      int startIndex,
+                                                      PinMatcher pinMatcher,
+                                                      boolean pinApplied,
+                                                      int[] skip,
+                                                      @NotNull NodeCall nodeCall,
+                                                      boolean rollbackOnFail,
+                                                      ConsumeType consumeType) {
     if (startIndex == children.size() - 1 || !(nodeCall instanceof ConsumeTokenCall)) return nodeCall;
     List<String> list = new ArrayList<>();
     int pin = pinApplied ? -1 : 0;
@@ -1225,14 +1227,13 @@ public class ParserGenerator {
     return new ConsumeTokensCall(consumeMethodName, pin, list);
   }
 
-  @Nullable
-  private NodeCall generateTokenChoiceCall(@NotNull List<BnfExpression> children,
-                                           @NotNull ConsumeType consumeType,
-                                           @NotNull String funcName) {
-    final Collection<String> tokenNames = getTokenNames(myFile, children, 2);
+  private @Nullable NodeCall generateTokenChoiceCall(@NotNull List<BnfExpression> children,
+                                                     @NotNull ConsumeType consumeType,
+                                                     @NotNull String funcName) {
+    Collection<String> tokenNames = getTokenNames(myFile, children, 2);
     if (tokenNames == null) return null;
 
-    final Set<String> tokens = new TreeSet<>();
+    Set<String> tokens = new TreeSet<>();
     for (String tokenName : tokenNames) {
       if (!mySimpleTokens.containsKey(tokenName) && !mySimpleTokens.containsValue(tokenName)) {
         mySimpleTokens.put(tokenName, null);
@@ -1240,7 +1241,7 @@ public class ParserGenerator {
       tokens.add(getElementType(tokenName));
     }
 
-    final String tokenSetName = getTokenSetConstantName(funcName);
+    String tokenSetName = getTokenSetConstantName(funcName);
     myTokenSets.put(tokenSetName, tokens);
     return new ConsumeTokenChoiceCall(consumeType, tokenSetName);
   }
@@ -1337,15 +1338,13 @@ public class ParserGenerator {
     }
   }
 
-  @NotNull
-  private ConsumeType getEffectiveConsumeType(@NotNull BnfRule rule, @Nullable BnfExpression node, @Nullable ConsumeType forcedConsumeType) {
+  private @NotNull ConsumeType getEffectiveConsumeType(@NotNull BnfRule rule, @Nullable BnfExpression node, @Nullable ConsumeType forcedConsumeType) {
     if (forcedConsumeType == ConsumeType.DEFAULT) return ConsumeType.DEFAULT;
     PsiElement parent = node == null ? null : node.getParent();
 
     if (forcedConsumeType == null && parent instanceof BnfSequence &&
         ContainerUtil.getFirstItem(((BnfSequence)parent).getExpressionList()) != node) {
-      Set<BnfExpression> expressions = new BnfFirstNextAnalyzer()
-        .setParentFilter(o -> o != parent)
+      Set<BnfExpression> expressions = BnfFirstNextAnalyzer.createAnalyzer(false, false, o -> o != parent)
         .calcFirst((BnfExpression)parent);
       if (expressions.size() != 1 || expressions.iterator().next() != node) {
         return ConsumeType.DEFAULT;
@@ -1355,8 +1354,7 @@ public class ParserGenerator {
     return fixed != null ? fixed : ConsumeType.forRule(rule);
   }
 
-  @NotNull
-  private NodeCall generateExternalCall(@NotNull BnfRule rule, @NotNull List<BnfExpression> expressions, @NotNull String nextName) {
+  private @NotNull NodeCall generateExternalCall(@NotNull BnfRule rule, @NotNull List<BnfExpression> expressions, @NotNull String nextName) {
     List<BnfExpression> callParameters = expressions;
     List<String> metaParameterNames = Collections.emptyList();
     String method = expressions.size() > 0 ? expressions.get(0).getText() : null;
@@ -1410,7 +1408,7 @@ public class ParserGenerator {
             arguments.add(generateWrappedNodeCall(rule, nested, attributeName));
           }
           else {
-            arguments.add(new TextArgument(argument.startsWith("\'") ? GrammarUtil.unquote(argument) : argument));
+            arguments.add(new TextArgument(argument.startsWith("'") ? GrammarUtil.unquote(argument) : argument));
           }
         }
         else if (nested instanceof BnfExternalExpression) {
@@ -1431,8 +1429,7 @@ public class ParserGenerator {
                                    : new MethodCallWithArguments(method, arguments);
   }
 
-  @NotNull
-  private NodeArgument generateWrappedNodeCall(@NotNull BnfRule rule, @Nullable BnfExpression nested, @NotNull String nextName) {
+  private @NotNull NodeArgument generateWrappedNodeCall(@NotNull BnfRule rule, @Nullable BnfExpression nested, @NotNull String nextName) {
     NodeCall nodeCall = generateNodeCall(rule, nested, nextName);
     if (nodeCall instanceof MetaMethodCall) {
       MetaMethodCall metaCall = (MetaMethodCall)nodeCall;
@@ -1459,8 +1456,7 @@ public class ParserGenerator {
     return fieldName;
   }
 
-  @NotNull
-  private String getParserLambdaRef(@NotNull NodeCall nodeCall, @NotNull String nextName) {
+  private @NotNull String getParserLambdaRef(@NotNull NodeCall nodeCall, @NotNull String nextName) {
     String constantName = getWrapperParserConstantName(nextName);
     String targetClass = myRenderedLambdas.get(constantName);
     if (targetClass != null) {
@@ -1480,14 +1476,12 @@ public class ParserGenerator {
     return !myInlinedChildNodes.contains(funcName);
   }
 
-  @NotNull
-  private NodeCall generateConsumeToken(@NotNull ConsumeType consumeType, @NotNull String tokenName) {
+  private @NotNull NodeCall generateConsumeToken(@NotNull ConsumeType consumeType, @NotNull String tokenName) {
     myTokensUsedInGrammar.add(tokenName);
     return new ConsumeTokenCall(consumeType, getElementType(tokenName));
   }
 
-  @NotNull
-  public static NodeCall generateConsumeTextToken(@NotNull ConsumeType consumeType, @NotNull String tokenText) {
+  public static @NotNull NodeCall generateConsumeTextToken(@NotNull ConsumeType consumeType, @NotNull String tokenText) {
     return new ConsumeTokenCall(consumeType, "\"" + tokenText + "\"");
   }
 
@@ -1554,17 +1548,15 @@ public class ParserGenerator {
     generateClassHeader(className, imports, "", Java.INTERFACE);
     if (G.generateElementTypes) {
       for (String elementType : sortedCompositeTypes.keySet()) {
-        String exactType = null;
         Trinity<String, String, RuleInfo> info = compositeToClassAndFactoryMap.get(elementType);
         String elementCreateCall;
         if (info.second == null) {
-          exactType = info.first;
-          elementCreateCall = "new " + shorten(exactType);
+          elementCreateCall = "new " + shorten(info.first);
         }
         else {
           elementCreateCall = shorten(StringUtil.getPackageName(info.second)) + "." + StringUtil.getShortName(info.second);
         }
-        String fieldType = ObjectUtils.notNull(useExactElements ? exactType : IELEMENTTYPE_CLASS);
+        String fieldType = useExactElements && info.first != null ? info.first : IELEMENTTYPE_CLASS;
         String callFix = elementCreateCall.endsWith("IElementType") ? ", null" : "";
         out("%s %s = %s(\"%s\"%s);", shorten(fieldType), elementType, elementCreateCall, elementType, callFix);
       }
@@ -1767,8 +1759,9 @@ public class ParserGenerator {
       imports.addAll(getRuleMethodTypesToImport(rule));
     }
 
-    Function<String, String> substitutor = stubName == null ? genericUnwrapper : o -> {
-      String oo = genericUnwrapper.fun(o);
+    Function<String, String> substitutor = stubName == null ? ParserGeneratorUtil::unwrapTypeArgumentForParamList : o -> {
+      String oo = unwrapTypeArgumentForParamList(o);
+      if (oo.equals(o)) return o;
       int idx = oo.lastIndexOf(" ");
       return idx == -1 ? stubName : oo.substring(0, idx) + " " + stubName;
     };
@@ -1779,7 +1772,7 @@ public class ParserGenerator {
     String topSuperClass = null;
     for (BnfRule next = rule; next != null && next != topSuperRule; ) {
       if (!visited.add(next)) {
-        ParserGeneratorUtil.addWarning(myFile.getProject(), rule.getName() + " employs cyclic inheritance");
+        addWarning(rule.getName() + " employs cyclic inheritance");
         break;
       }
       topSuperRule = next;
@@ -1854,12 +1847,14 @@ public class ParserGenerator {
       String ret = G.visitorValue != null ? "return " : "";
       boolean addOverride = topSuperRule != rule && info.mixin == null;
       if (!addOverride && topSuperClass != null) {
-        for (NavigatablePsiElement m : myJavaHelper.findClassMethods(
-          topSuperClass, JavaHelper.MethodType.INSTANCE, "accept", 1, myVisitorClassName)) {
-          String paramType = myJavaHelper.getMethodTypes(m).get(1);
-          if (paramType.endsWith(myVisitorClassName + r)) {
-            addOverride = true;
-            break;
+        main: for (String curClass = topSuperClass; curClass != null; curClass = myJavaHelper.getSuperClassName(curClass)) {
+          for (NavigatablePsiElement m : myJavaHelper.findClassMethods(
+            curClass, JavaHelper.MethodType.INSTANCE, "accept", 1, myVisitorClassName)) {
+            String paramType = myJavaHelper.getMethodTypes(m).get(1);
+            if (NameShortener.getRawClassName(paramType).endsWith(StringUtil.getShortName(myVisitorClassName))) {
+              addOverride = true;
+              break main;
+            }
           }
         }
       }
@@ -1918,7 +1913,7 @@ public class ParserGenerator {
                 "//methods are not found in %s",
                 methodInfo.name, methodInfo.name, ruleClassName, implClassName);
             newLine();
-            addWarning(myFile.getProject(), "%s.%s(%s, ...) method not found", implClassName, methodInfo.name, ruleClassName);
+            addWarning(format("%s.%s(%s, ...) method not found", implClassName, methodInfo.name, ruleClassName));
           }
           break;
         default: throw new AssertionError(methodInfo.toString());
@@ -1968,8 +1963,11 @@ public class ParserGenerator {
       addTypeToImports(returnType, myJavaHelper.getAnnotations(method), result);
 
       for (JavaHelper.TypeParameterInfo generic : myJavaHelper.getGenericParameters(method)) {
-        for (String superType : generic.getExtendsList()) {
-          addTypeToImports(superType, emptyList(), result);
+        for (String type : generic.getExtendsList()) {
+          addTypeToImports(type, emptyList(), result);
+        }
+        for (String type : generic.getAnnotations()) {
+          addTypeToImports(type, emptyList(), result);
         }
       }
 
@@ -2050,11 +2048,10 @@ public class ParserGenerator {
     return required && !mixedAST ? "notNullChild(" + result + ")" : result;
   }
 
-  @NotNull
-  private String getAccessorType(@NotNull BnfRule rule) {
+  private @NotNull String getAccessorType(@NotNull BnfRule rule) {
     if (Rule.isExternal(rule)) {
       Pair<String, String> first = ContainerUtil.getFirstItem(getAttribute(rule, KnownAttribute.IMPLEMENTS));
-      return ObjectUtils.assertNotNull(first).second;
+      return Objects.requireNonNull(first).second;
     }
     else {
       return ruleInfo(rule).intfClass;
@@ -2127,7 +2124,7 @@ public class ParserGenerator {
       }
       if (error != null) {
         if (intf) { // warn only once
-          addWarning(startRule.getProject(), "%s#%s(\"%s\"): %s", startRule.getName(), methodInfo.name, methodInfo.path, error);
+          addWarning(format("%s#%s(\"%s\"): %s", startRule.getName(), methodInfo.name, methodInfo.path, error));
         }
         return;
       }
@@ -2241,17 +2238,18 @@ public class ParserGenerator {
       out("@" + shorten(s));
     }
     Function<Integer, List<String>> annoProvider = i -> myJavaHelper.getParameterAnnotations(method, (i - 1) / 2);
+    Function<String, String> substitutor = ParserGeneratorUtil::unwrapTypeArgumentForParamList;
     out("%s%s%s %s(%s)%s%s",
         intf ? "" : "public ",
         getGenericClauseString(genericParameters, myShortener),
         returnType,
         methodName,
-        getParametersString(methodTypes, offset, 3, genericUnwrapper, annoProvider, myShortener),
+        getParametersString(methodTypes, offset, 3, substitutor, annoProvider, myShortener),
         getThrowsString(exceptionList, myShortener),
         intf ? ";" : " {");
     if (!intf) {
       String implUtilRef = shorten(StringUtil.notNullize(myPsiImplUtilClass, KnownAttribute.PSI_IMPL_UTIL_CLASS.getName()));
-      String string = getParametersString(methodTypes, offset, 2, genericUnwrapper, annoProvider, myShortener);
+      String string = getParametersString(methodTypes, offset, 2, substitutor, annoProvider, myShortener);
       out("%s%s.%s(this%s);", "void".equals(returnType) ? "" : "return ", implUtilRef, methodName,
           string.isEmpty() ? "" : ", " + string);
       out("}");

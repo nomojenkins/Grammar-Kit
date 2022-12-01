@@ -21,8 +21,8 @@ import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.analysis.BnfFirstNextAnalyzer;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.GrammarUtil;
-import org.intellij.grammar.psi.impl.GrammarUtil.FakeElementType;
 import org.intellij.grammar.psi.impl.GrammarUtil.FakeBnfExpression;
+import org.intellij.grammar.psi.impl.GrammarUtil.FakeElementType;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
@@ -38,7 +38,7 @@ import static org.intellij.grammar.psi.impl.GrammarUtil.isDoubleAngles;
  *         Date: 16.07.11 10:41
  */
 public class RuleGraphHelper {
-  private static final TObjectHashingStrategy<PsiElement> CARDINALITY_HASHING_STRATEGY = new TObjectHashingStrategy<PsiElement>() {
+  private static final TObjectHashingStrategy<PsiElement> CARDINALITY_HASHING_STRATEGY = new TObjectHashingStrategy<>() {
     @Override
     public int computeHashCode(PsiElement e) {
       if (e instanceof BnfReferenceOrToken || e instanceof BnfLiteralExpression) {
@@ -159,7 +159,7 @@ public class RuleGraphHelper {
     for (int i = 0, len = ruleExtendsMap.size(); i < len; i++) {
       boolean changed = false;
       for (BnfRule superRule : ruleExtendsMap.keySet()) {
-        final Collection<BnfRule> rules = ruleExtendsMap.get(superRule);
+        Collection<BnfRule> rules = ruleExtendsMap.get(superRule);
         for (BnfRule rule : new ArrayList<>(rules)) {
           changed |= rules.addAll(ruleExtendsMap.get(rule));
         }
@@ -173,29 +173,14 @@ public class RuleGraphHelper {
   }
 
   private static <K, V> MultiMap<K, V> newMultiMap() {
-    return new MultiMap<K, V>() {
-      @NotNull
-      @Override
-      protected Map<K, Collection<V>> createMap() {
-        return new LinkedHashMap<>();
-      }
-
-      @NotNull
-      @Override
-      protected Collection<V> createCollection() {
-        return new LinkedHashSet<>();
-      }
-    };
+    return MultiMap.createLinkedSet();
   }
 
-  @NotNull
-  public static Map<String, String> getTokenNameToTextMap(final BnfFile file) {
-    return CachedValuesManager.getCachedValue(file,
-                                              () -> new CachedValueProvider.Result<>(computeTokens(file).asMap(), file));
+  public static @NotNull Map<String, String> getTokenNameToTextMap(BnfFile file) {
+    return CachedValuesManager.getCachedValue(file, () -> new CachedValueProvider.Result<>(computeTokens(file).asMap(), file));
   }
 
-  @NotNull
-  public static Map<String, String> getTokenTextToNameMap(final BnfFile file) {
+  public static @NotNull Map<String, String> getTokenTextToNameMap(BnfFile file) {
     return CachedValuesManager.getCachedValue(file, () -> new CachedValueProvider.Result<>(computeTokens(file).asInverseMap(), file));
   }
 
@@ -205,7 +190,7 @@ public class RuleGraphHelper {
   }
 
   private static final Key<CachedValue<RuleGraphHelper>> RULE_GRAPH_HELPER_KEY = Key.create("RULE_GRAPH_HELPER_KEY");
-  public static RuleGraphHelper getCached(final BnfFile file) {
+  public static RuleGraphHelper getCached(@NotNull BnfFile file) {
     CachedValue<RuleGraphHelper> value = file.getUserData(RULE_GRAPH_HELPER_KEY);
     if (value == null) {
       file.putUserData(RULE_GRAPH_HELPER_KEY, value = CachedValuesManager.getManager(file.getProject()).createCachedValue(
@@ -240,8 +225,7 @@ public class RuleGraphHelper {
   }
 
   private void buildCollapseMap() {
-    BnfFirstNextAnalyzer analyzer = new BnfFirstNextAnalyzer()
-      .setPublicRuleOpaque(true).setParentFilter(o -> !(o instanceof BnfRule)).setPredicateLookAhead(true);
+    BnfFirstNextAnalyzer analyzer = BnfFirstNextAnalyzer.createAnalyzer(true, true, o -> !(o instanceof BnfRule));
 
     for (BnfRule rule : myFile.getRules()) {
       if (!myRuleExtendsMap.containsScalarValue(rule)) continue;
@@ -290,8 +274,7 @@ public class RuleGraphHelper {
     return result;
   }
 
-  @Nullable
-  private BnfRule getCommonSuperRule(BnfRule r1, BnfRule r2) {
+  private @Nullable BnfRule getCommonSuperRule(BnfRule r1, BnfRule r2) {
     int count = Integer.MAX_VALUE;
     BnfRule result = null;
     for (BnfRule superRule : myRuleExtendsMap.keySet()) {
@@ -345,8 +328,7 @@ public class RuleGraphHelper {
     return myRulesGraph.get(rule);
   }
 
-  @NotNull
-  public Map<PsiElement, Cardinality> getFor(BnfRule rule) {
+  public @NotNull Map<PsiElement, Cardinality> getFor(BnfRule rule) {
     Map<PsiElement, Cardinality> map = myRuleContentsMap.get(rule); // null for duplicate
     return map == null ? Collections.emptyMap() : map;
   }
@@ -495,7 +477,7 @@ public class RuleGraphHelper {
 
   private static Map<BnfRule, Cardinality> getRulesToTheLeft(BnfRule rule) {
     Map<BnfRule, Cardinality> result = new LinkedHashMap<>();
-    Map<BnfExpression, BnfExpression> nextMap = new BnfFirstNextAnalyzer().setBackward(true).setPublicRuleOpaque(true).calcNext(rule);
+    Map<BnfExpression, BnfExpression> nextMap = BnfFirstNextAnalyzer.createBackwardAnalyzer(true).calcNext(rule);
     for (BnfExpression e : nextMap.keySet()) {
       if (!(e instanceof BnfReferenceOrToken)) continue;
       BnfRule r = ((BnfReferenceOrToken)e).resolveRule();
@@ -669,9 +651,6 @@ public class RuleGraphHelper {
         if (r != null) rulesAndAlts.put(r, r);
       }
     }
-    //if (forRule != null && "".equals(forRule.getName())) {
-    //  int gotcha = 1;
-    //}
 
     boolean hasSynonyms = collectSynonymsAndCollapseAlternatives(rulesAndAlts);
     if (rulesAndAlts.size() < 2) {
@@ -855,8 +834,7 @@ public class RuleGraphHelper {
     return thatRule == null || thatRule == grammarRoot || Rule.isPrivate(thatRule) || Rule.isExternal(thatRule);
   }
 
-  @NotNull
-  private PsiElement newExternalPsi(String name) {
+  private @NotNull PsiElement newExternalPsi(String name) {
     PsiElement e = myExternalElements.get(name);
     if (e == null) {
       myExternalElements.put(name, e = new FakeBnfExpression(EXTERNAL_TYPE, name));

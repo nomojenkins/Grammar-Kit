@@ -23,9 +23,13 @@ public class JFlexCompositeImpl extends CompositePsiElement implements JFlexComp
     super(type);
   }
 
-  @NotNull
   @Override
-  public SearchScope getUseScope() {
+  public <R> R accept(@NotNull JFlexVisitor<R> visitor) {
+    return visitor.visitComposite(this);
+  }
+
+  @Override
+  public @NotNull SearchScope getUseScope() {
     return new LocalSearchScope(getContainingFile());
   }
 
@@ -46,6 +50,6 @@ public class JFlexCompositeImpl extends CompositePsiElement implements JFlexComp
 
   @Override
   public String toString() {
-    return getClass().getSimpleName() + "(" + getElementType().toString() + ")";
+    return getClass().getSimpleName() + "(" + getElementType() + ")";
   }
 }

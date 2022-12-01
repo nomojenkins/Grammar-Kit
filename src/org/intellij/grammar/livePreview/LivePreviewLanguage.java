@@ -17,7 +17,6 @@ import com.intellij.openapi.vfs.pointers.VirtualFilePointer;
 import com.intellij.openapi.vfs.pointers.VirtualFilePointerManager;
 import com.intellij.psi.PsiFile;
 import com.intellij.psi.PsiManager;
-import com.intellij.util.ObjectUtils;
 import org.intellij.grammar.psi.BnfFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
@@ -29,6 +28,7 @@ import java.lang.ref.SoftReference;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.intellij.grammar.generator.BnfConstants.LP_DISPLAY_NAME;
@@ -43,9 +43,8 @@ public class LivePreviewLanguage extends Language {
   private final VirtualFilePointer myFilePointer;
   private final SoftReference<BnfFile> myBnfFile;
   public static final Language BASE_INSTANCE = new Language("BNF_LP") {
-    @NotNull
     @Override
-    public String getDisplayName() {
+    public @NotNull String getDisplayName() {
       return LP_DISPLAY_NAME;
     }
   };
@@ -53,8 +52,8 @@ public class LivePreviewLanguage extends Language {
   private static final MyClassLoader ourClassLoader = new MyClassLoader();
 
   protected LivePreviewLanguage(@NotNull BnfFile grammarFile) {
-    super(BASE_INSTANCE, ObjectUtils.assertNotNull(grammarFile.getVirtualFile()).getPath());
-    VirtualFile virtualFile = ObjectUtils.assertNotNull(grammarFile.getVirtualFile());
+    super(BASE_INSTANCE, Objects.requireNonNull(grammarFile.getVirtualFile()).getPath());
+    VirtualFile virtualFile = Objects.requireNonNull(grammarFile.getVirtualFile());
     Application app = ApplicationManager.getApplication();
     if (app.isUnitTestMode()) {
       myBnfFile = new SoftReference<>(grammarFile);
@@ -66,15 +65,13 @@ public class LivePreviewLanguage extends Language {
     }
   }
 
-  @NotNull
   @Override
-  public String getDisplayName() {
+  public @NotNull String getDisplayName() {
     VirtualFile file = getGrammarFile();
     return file == null ? getID() : "'" + file.getName() + "' grammar";
   }
 
-  @Nullable
-  public VirtualFile getGrammarFile() {
+  public @Nullable VirtualFile getGrammarFile() {
     if (myBnfFile != null) {
       BnfFile file = myBnfFile.get();
       return file == null? null : file.getVirtualFile();
@@ -84,16 +81,14 @@ public class LivePreviewLanguage extends Language {
     }
   }
 
-  @Nullable
-  public BnfFile getGrammar(@Nullable Project project) {
+  public @Nullable BnfFile getGrammar(@Nullable Project project) {
     if (myBnfFile != null) return myBnfFile.get();
     VirtualFile file = project == null? null : getGrammarFile();
     PsiFile psiFile = file == null? null : PsiManager.getInstance(project).findFile(file);
     return psiFile instanceof BnfFile? (BnfFile)psiFile : null;
   }
 
-  @NotNull
-  public static LivePreviewLanguage newInstance(PsiFile psiFile) {
+  public static @NotNull LivePreviewLanguage newInstance(PsiFile psiFile) {
     try {
       return (LivePreviewLanguage)ourClassLoader.createClass().getDeclaredConstructors()[0].newInstance(psiFile);
     }
@@ -102,8 +97,7 @@ public class LivePreviewLanguage extends Language {
     }
   }
 
-  @Nullable
-  public static LivePreviewLanguage findInstance(PsiFile psiFile) {
+  public static @Nullable LivePreviewLanguage findInstance(PsiFile psiFile) {
     VirtualFile vFile = psiFile.getVirtualFile();
     if (vFile == null) return null;
     for (Language language : Language.getRegisteredLanguages()) {
@@ -115,8 +109,7 @@ public class LivePreviewLanguage extends Language {
     return null;
   }
 
-  @NotNull
-  public List<Editor> getGrammarEditors(@NotNull Project project) {
+  public @NotNull List<Editor> getGrammarEditors(@NotNull Project project) {
     VirtualFile file = getGrammarFile();
     if (file == null) return Collections.emptyList();
     FileEditor[] editors = FileEditorManager.getInstance(project).getAllEditors(file);
@@ -128,8 +121,7 @@ public class LivePreviewLanguage extends Language {
     return result;
   }
 
-  @NotNull
-  public List<Editor> getPreviewEditors(@NotNull Project project) {
+  public @NotNull List<Editor> getPreviewEditors(@NotNull Project project) {
     FileEditorManager fileEditorManager = FileEditorManager.getInstance(project);
     VirtualFile[] files = fileEditorManager.getOpenFiles();
     if (files.length == 0) return Collections.emptyList();
@@ -161,7 +153,7 @@ public class LivePreviewLanguage extends Language {
       return (Class<LivePreviewLanguage>)defineClass(className, b, 0, b.length);
     }
 
-    public static byte[] dump(String className) throws Exception {
+    public static byte[] dump(String className) {
       ClassWriter cw = new ClassWriter(0);
       MethodVisitor mv;
 

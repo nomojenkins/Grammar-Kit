@@ -78,7 +78,7 @@ public class BnfRunJFlexAction extends DumbAwareAction {
 
   private static final String[] JETBRAINS_JFLEX_URLS = {
     System.getProperty("grammar.kit.jflex.jar",
-                       "https://jetbrains.bintray.com/intellij-third-party-dependencies/org/jetbrains/intellij/deps/jflex/jflex/1.7.0-2/jflex-1.7.0-2.jar"),
+                       "https://cache-redirector.jetbrains.com/intellij-dependencies/org/jetbrains/intellij/deps/jflex/jflex/1.7.0-2/jflex-1.7.0-2.jar"),
     System.getProperty("grammar.kit.jflex.skeleton",
                        "https://raw.github.com/JetBrains/intellij-community/master/tools/lexer/idea-flex.skeleton")
   };
@@ -148,9 +148,9 @@ public class BnfRunJFlexAction extends DumbAwareAction {
 
     String text = document.getText();
     Matcher matcherClass = Pattern.compile("%class\\s+(\\w+)").matcher(text);
-    final String lexerClassName = matcherClass.find() ? matcherClass.group(1) : null;
+    String lexerClassName = matcherClass.find() ? matcherClass.group(1) : null;
     Matcher matcherPackage = Pattern.compile("package\\s+([^;]+);|(%%)").matcher(text);
-    final String lexerPackage = matcherPackage.find() ? StringUtil.trim(matcherPackage.group(1)) : null;
+    String lexerPackage = matcherPackage.find() ? StringUtil.trim(matcherPackage.group(1)) : null;
     if (lexerClassName == null) {
       String content = "Lexer class name option not found, use <pre>%class LexerClassName</pre>";
       fail(project, flexFile, content);
@@ -278,7 +278,7 @@ public class BnfRunJFlexAction extends DumbAwareAction {
     // ensure the order is the same
     for (String url : urls) {
       for (Pair<VirtualFile, DownloadableFileDescription> pair : pairs) {
-        if (Comparing.equal(url, pair.second.getDownloadUrl())) {
+        if (Objects.equals(url, pair.second.getDownloadUrl())) {
           result.add(VfsUtil.virtualToIoFile(pair.first));
           break;
         }
@@ -381,8 +381,7 @@ public class BnfRunJFlexAction extends DumbAwareAction {
     modifiableModel.commit();
   }
 
-  @Nullable
-  private static String getCommunitySrcUrl(@NotNull Project project) {
+  private static @Nullable String getCommunitySrcUrl(@NotNull Project project) {
     Sdk projectSdk = ProjectRootManager.getInstance(project).getProjectSdk();
     Sdk[] jdks = ProjectJdkTable.getInstance().getAllJdks();
     for (Sdk sdk : JBIterable.of(projectSdk).append(jdks).filter(Conditions.notNull())) {
@@ -392,8 +391,7 @@ public class BnfRunJFlexAction extends DumbAwareAction {
     return null;
   }
 
-  @Nullable
-  private static String getCommunitySrcUrlInner(@NotNull Sdk projectSdk) {
+  private static @Nullable String getCommunitySrcUrlInner(@NotNull Sdk projectSdk) {
     String homePath = projectSdk.getHomePath();
     String API_SCR = "/platform/lang-api/src";
     if (homePath != null) {
