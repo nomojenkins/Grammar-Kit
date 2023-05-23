@@ -20,15 +20,13 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
 import com.intellij.util.containers.JBTreeTraverser;
 import com.intellij.util.containers.TreeTraversal;
-import gnu.trove.THashSet;
-import gnu.trove.TObjectHashingStrategy;
+import it.unimi.dsi.fastutil.Hash;
 import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.java.JavaHelper;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.GrammarUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
-import org.jetbrains.annotations.TestOnly;
 
 import java.util.*;
 import java.util.regex.Pattern;
@@ -44,13 +42,13 @@ import static org.intellij.grammar.psi.BnfTypes.BNF_SEQUENCE;
  */
 public class ParserGeneratorUtil {
   private static final String RESERVED_SUFFIX = "_$";
-  private static final Set<String> JAVA_RESERVED = new THashSet<>(Arrays.asList(
-    "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
-    "const", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally",
-    "float", "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long",
-    "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static",
-    "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true",
-    "try", "void", "volatile", "while", "continue"));
+  private static final Set<String> JAVA_RESERVED =
+    ContainerUtil.set("abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class",
+                      "const", "default", "do", "double", "else", "enum", "extends", "false", "final", "finally",
+                      "float", "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long",
+                      "native", "new", "null", "package", "private", "protected", "public", "return", "short", "static",
+                      "strictfp", "super", "switch", "synchronized", "this", "throw", "throws", "transient", "true",
+                      "try", "void", "volatile", "while", "continue");
 
   enum ConsumeType {
     FAST, SMART, DEFAULT;
@@ -232,7 +230,7 @@ public class ParserGeneratorUtil {
       return tree.getFirstChild().getNode().getElementType();
     }
     else if (tree instanceof BnfParenExpression) {
-      return BnfTypes.BNF_SEQUENCE;
+      return BNF_SEQUENCE;
     }
     else {
       return tree.getNode().getElementType();
@@ -284,7 +282,6 @@ public class ParserGeneratorUtil {
     return false;
   }
 
-  @TestOnly
   public static @NotNull String toIdentifier(@NotNull String text, @Nullable NameFormat format, @NotNull Case cas) {
     if (text.isEmpty()) return "";
     String fixed = text.replaceAll("[^:\\p{javaJavaIdentifierPart}]", "_");
@@ -818,8 +815,8 @@ public class ParserGeneratorUtil {
   public static String getParametersString(List<String> paramsTypes,
                                            int offset,
                                            int mask,
-                                           Function<String, String> substitutor,
-                                           Function<Integer, List<String>> annoProvider,
+                                           Function<? super String, String> substitutor,
+                                           Function<? super Integer, ? extends List<String>> annoProvider,
                                            NameShortener shortener) {
     StringBuilder sb = new StringBuilder();
     for (int i = offset; i < paramsTypes.size(); i += 2) {
@@ -926,20 +923,20 @@ public class ParserGeneratorUtil {
     return "static " + fqn + ".*";
   }
 
-  private static final TObjectHashingStrategy<PsiElement> TEXT_STRATEGY = new TObjectHashingStrategy<>() {
+  private static final Hash.Strategy<PsiElement> TEXT_STRATEGY = new Hash.Strategy<>() {
     @Override
-    public int computeHashCode(PsiElement e) {
-      return e.getText().hashCode();
+    public int hashCode(PsiElement e) {
+      return e == null ? 0 : e.getText().hashCode();
     }
 
     @Override
     public boolean equals(PsiElement e1, PsiElement e2) {
-      return Objects.equals(e1.getText(), e2.getText());
+      return e1 == null ? e2 == null : e2 != null && Objects.equals(e1.getText(), e2.getText());
     }
   };
 
-  public static <T extends PsiElement> TObjectHashingStrategy<T> textStrategy() {
-    return (TObjectHashingStrategy<T>)TEXT_STRATEGY;
+  public static <T extends PsiElement> Hash.Strategy<T> textStrategy() {
+    return (Hash.Strategy<T>)TEXT_STRATEGY;
   }
 
   static @NotNull <K extends Comparable<? super K>, V> Map<K, V> take(@NotNull Map<K, V> map) {

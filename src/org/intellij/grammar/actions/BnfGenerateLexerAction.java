@@ -7,9 +7,10 @@ package org.intellij.grammar.actions;
 import com.intellij.notification.Notification;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.fileChooser.FileChooserFactory;
@@ -31,7 +32,6 @@ import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import org.apache.velocity.VelocityContext;
 import org.apache.velocity.app.VelocityEngine;
-import org.apache.velocity.runtime.log.NullLogChute;
 import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.generator.BnfConstants;
 import org.intellij.grammar.generator.Case;
@@ -43,6 +43,7 @@ import org.intellij.grammar.psi.BnfReferenceOrToken;
 import org.intellij.grammar.psi.impl.GrammarUtil;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
+import org.slf4j.helpers.NOPLogger;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -61,14 +62,19 @@ import static org.intellij.grammar.generator.ParserGeneratorUtil.getRootAttribut
  */
 public class BnfGenerateLexerAction extends AnAction {
   @Override
+  public @NotNull ActionUpdateThread getActionUpdateThread() {
+    return ActionUpdateThread.BGT;
+  }
+
+  @Override
   public void update(AnActionEvent e) {
-    PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
+    PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
     e.getPresentation().setEnabledAndVisible(file instanceof BnfFile);
   }
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
+    PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
     if (!(file instanceof BnfFile)) return;
 
     Project project = file.getProject();
@@ -76,7 +82,7 @@ public class BnfGenerateLexerAction extends AnAction {
     BnfFile bnfFile = (BnfFile) file;
     String flexFileName = getFlexFileName(bnfFile);
 
-    Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(project, flexFileName, ProjectScope.getAllScope(project));
+    Collection<VirtualFile> files = FilenameIndex.getVirtualFilesByName(flexFileName, ProjectScope.getAllScope(project));
     VirtualFile firstItem = ContainerUtil.getFirstItem(files);
 
     FileSaverDescriptor descriptor = new FileSaverDescriptor("Save JFlex Lexer", "", "flex");
@@ -87,7 +93,7 @@ public class BnfGenerateLexerAction extends AnAction {
     VirtualFile virtualFile = fileWrapper.getVirtualFile(true);
     if (virtualFile == null) return;
 
-    WriteCommandAction.runWriteCommandAction(project, () -> {
+    WriteCommandAction.runWriteCommandAction(project, e.getPresentation().getText(), null, () -> {
       try {
         PsiDirectory psiDirectory = PsiManager.getInstance(project).findDirectory(virtualFile.getParent());
         assert psiDirectory != null;
@@ -156,7 +162,15 @@ public class BnfGenerateLexerAction extends AnAction {
     });
 
     VelocityEngine ve = new VelocityEngine();
-    ve.setProperty(VelocityEngine.RUNTIME_LOG_LOGSYSTEM, new NullLogChute());
+    //RuntimeConstants.RUNTIME_LOG_INSTANCE
+    ve.setProperty("runtime.log.instance", NOPLogger.NOP_LOGGER);
+    try {
+      // Velocity < 2.0, IJ platform < 232
+      Class<?> chuteClass = Class.forName("org.apache.velocity.runtime.log.NullLogChute");
+      // RuntimeConstants.RUNTIME_LOG_LOGSYSTEM
+      ve.setProperty("runtime.log.logsystem", chuteClass.getDeclaredConstructor().newInstance());
+    }
+    catch (Throwable ignore) {}
     ve.init();
     
     VelocityContext context = new VelocityContext();

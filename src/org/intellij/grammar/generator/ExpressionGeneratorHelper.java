@@ -8,7 +8,6 @@ import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.ArrayUtil;
 import com.intellij.util.SmartList;
-import gnu.trove.THashSet;
 import org.intellij.grammar.KnownAttribute;
 import org.intellij.grammar.psi.BnfExpression;
 import org.intellij.grammar.psi.BnfRule;
@@ -53,8 +52,8 @@ public class ExpressionGeneratorHelper {
     // main entry
     String methodName = getFuncName(info.rootRule);
     String kernelMethodName = getNextName(methodName, 0);
-    String frameName = quote(ParserGeneratorUtil.getRuleDisplayName(info.rootRule, true));
-    String shortPB = g.shorten(BnfConstants.PSI_BUILDER_CLASS);
+    String frameName = quote(getRuleDisplayName(info.rootRule, true));
+    String shortPB = g.shorten(PSI_BUILDER_CLASS);
     String shortMarker = !g.G.generateFQN ? "Marker" : PSI_BUILDER_CLASS + ".Marker";
     g.out("public static boolean %s(%s %s, int %s, int %s) {", methodName, shortPB, g.N.builder, g.N.level, g.N.priority);
     g.out("if (!recursion_guard_(%s, %s, \"%s\")) return false;", g.N.builder, g.N.level, methodName);
@@ -112,7 +111,7 @@ public class ExpressionGeneratorHelper {
       g.out("%sif (%s < %d%s && %s) {", first ? "" : "else ", g.N.priority, priority, substCheck, opCall);
       first = false;
       String elementType = g.getElementType(operator.rule);
-      boolean rightAssociative = ParserGeneratorUtil.getAttribute(operator.rule, KnownAttribute.RIGHT_ASSOCIATIVE);
+      boolean rightAssociative = getAttribute(operator.rule, KnownAttribute.RIGHT_ASSOCIATIVE);
       String tailCall = operator.tail == null ? null : g.generateNodeCall(
         operator.rule, operator.tail, getNextName(getFuncName(operator.rule), 1), ConsumeType.DEFAULT
       ).render(g.N);
@@ -157,7 +156,7 @@ public class ExpressionGeneratorHelper {
     g.out("}");
 
     // operators and tails
-    Set<BnfExpression> visited = new THashSet<>();
+    Set<BnfExpression> visited = new HashSet<>();
     for (String opCall : sortedOpCalls) {
       for (OperatorInfo operator : opCalls.get(opCall)) {
         if (operator.type == OperatorType.ATOM) {
@@ -229,7 +228,7 @@ public class ExpressionGeneratorHelper {
                                                            @Nullable ConsumeType defValue) {
     if (defValue != null) return defValue;
     ExpressionHelper.ExpressionInfo expressionInfo = expressionHelper.getExpressionInfo(rule);
-    ExpressionHelper.OperatorInfo operatorInfo = expressionInfo == null ? null : expressionInfo.operatorMap.get(rule);
+    OperatorInfo operatorInfo = expressionInfo == null ? null : expressionInfo.operatorMap.get(rule);
     if (operatorInfo != null) {
       if (node == null) {
         return operatorInfo.type == OperatorType.PREFIX || operatorInfo.type == OperatorType.ATOM ?

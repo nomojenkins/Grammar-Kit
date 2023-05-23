@@ -4,10 +4,9 @@
 
 package org.intellij.grammar.java;
 
-import com.intellij.codeInsight.intention.IntentionAction;
-import com.intellij.codeInsight.intention.QuickFixFactory;
 import com.intellij.navigation.NavigationItem;
 import com.intellij.openapi.project.IndexNotReadyException;
+import com.intellij.openapi.project.Project;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
@@ -45,10 +44,6 @@ public abstract class JavaHelper {
   public static JavaHelper getJavaHelper(@NotNull PsiElement context) {
     JavaHelper service = context.getProject().getService(JavaHelper.class);
     return service == null ? new AsmHelper() : service;
-  }
-
-  public @Nullable IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
-    return null;
   }
 
   public abstract boolean isPublic(@Nullable NavigatablePsiElement element);
@@ -115,9 +110,9 @@ public abstract class JavaHelper {
     private final JavaPsiFacade myFacade;
     private final PsiElementFactory myElementFactory;
 
-    private PsiHelper(JavaPsiFacade facade, PsiElementFactory elementFactory) {
-      myFacade = facade;
-      myElementFactory = elementFactory;
+    private PsiHelper(@NotNull Project project) {
+      myFacade = JavaPsiFacade.getInstance(project);
+      myElementFactory = PsiElementFactory.getInstance(project);
     }
 
     @Override
@@ -141,11 +136,6 @@ public abstract class JavaHelper {
       }
       provider.setSoft(false);
       return provider.getReferencesByElement(element, context);
-    }
-
-    @Override
-    public @Nullable IntentionAction getCreateClassQuickFix(PsiElement context, String className, boolean intf, String superClass) {
-      return QuickFixFactory.getInstance().createCreateClassOrInterfaceFix(context, className, !intf, superClass);
     }
 
     @Override
@@ -648,6 +638,7 @@ public abstract class JavaHelper {
         myInfo = info;
       }
 
+      @Override
       public void visit(int version,
                         int access,
                         String name,

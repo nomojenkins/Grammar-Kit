@@ -19,7 +19,6 @@ import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
 import com.intellij.util.containers.JBTreeTraverser;
 import com.intellij.util.containers.TreeTraversal;
-import gnu.trove.THashMap;
 import org.intellij.grammar.analysis.BnfFirstNextAnalyzer;
 import org.intellij.grammar.psi.*;
 import org.intellij.grammar.psi.impl.BnfElementFactory;
@@ -40,8 +39,8 @@ public class ExpressionHelper {
   private final RuleGraphHelper myRuleGraph;
   private final Consumer<String> myWarningConsumer;
 
-  private final Map<BnfRule, ExpressionInfo> myExpressionMap = new THashMap<>();
-  private final Map<BnfRule, BnfRule> myRootRulesMap = new THashMap<>();
+  private final Map<BnfRule, ExpressionInfo> myExpressionMap = new HashMap<>();
+  private final Map<BnfRule, BnfRule> myRootRulesMap = new HashMap<>();
 
   private static final Key<CachedValue<ExpressionHelper>> EXPRESSION_HELPER_KEY = Key.create("EXPRESSION_HELPER_KEY");
   public static ExpressionHelper getCached(@NotNull BnfFile file) {
@@ -59,10 +58,6 @@ public class ExpressionHelper {
     myRuleGraph = ruleGraph;
     myWarningConsumer = warningConsumer;
     buildExpressionRules();
-  }
-
-  public boolean hasExpressions() {
-    return !myExpressionMap.isEmpty();
   }
 
   public void addWarning(String text) {
@@ -89,7 +84,7 @@ public class ExpressionHelper {
 
       ExpressionInfo expressionInfo = new ExpressionInfo(rule);
       addToPriorityMap(rule, myRuleGraph.getExtendsRules(rule), expressionInfo);
-      List<BnfRule> rules = ParserGeneratorUtil.topoSort(expressionInfo.priorityMap.keySet(), myRuleGraph);
+      List<BnfRule> rules = topoSort(expressionInfo.priorityMap.keySet(), myRuleGraph);
       for (BnfRule r : rules) {
         buildOperatorMap(r, rule, expressionInfo);
       }
@@ -326,7 +321,7 @@ public class ExpressionHelper {
       return dumpPriorityTable(sb, StringBuilder::append);
     }
 
-    public StringBuilder dumpPriorityTable(StringBuilder sb, PairConsumer<StringBuilder, OperatorInfo> printer) {
+    public StringBuilder dumpPriorityTable(StringBuilder sb, PairConsumer<? super StringBuilder, ? super OperatorInfo> printer) {
       for (int i = 0; i < nextPriority; i++) {
         sb.append(i).append(":");
         int count = 0;

@@ -6,9 +6,10 @@ package org.intellij.grammar.actions;
 
 import com.intellij.codeInsight.daemon.impl.quickfix.CreateClassKind;
 import com.intellij.codeInsight.intention.impl.CreateClassDialog;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.ApplicationManager;
 import com.intellij.openapi.command.WriteCommandAction;
 import com.intellij.openapi.editor.Document;
@@ -17,12 +18,12 @@ import com.intellij.openapi.module.Module;
 import com.intellij.openapi.module.ModuleUtilCore;
 import com.intellij.openapi.project.Project;
 import com.intellij.openapi.ui.Messages;
+import com.intellij.openapi.util.NlsContexts;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.psi.*;
 import com.intellij.psi.search.GlobalSearchScope;
-import com.intellij.util.Consumer;
 import com.intellij.util.IncorrectOperationException;
 import com.intellij.util.containers.ContainerUtil;
 import org.intellij.grammar.KnownAttribute;
@@ -33,13 +34,20 @@ import org.intellij.grammar.psi.BnfFile;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.function.Consumer;
+
 /**
  * @author greg
  */
 public class BnfGenerateParserUtilAction extends AnAction {
   @Override
+  public @NotNull ActionUpdateThread getActionUpdateThread() {
+    return ActionUpdateThread.BGT;
+  }
+
+  @Override
   public void update(AnActionEvent e) {
-    PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
+    PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
     if (!(file instanceof BnfFile)) {
       e.getPresentation().setEnabledAndVisible(false);
     }
@@ -51,7 +59,7 @@ public class BnfGenerateParserUtilAction extends AnAction {
 
   @Override
   public void actionPerformed(AnActionEvent e) {
-    PsiFile file = LangDataKeys.PSI_FILE.getData(e.getDataContext());
+    PsiFile file = e.getData(CommonDataKeys.PSI_FILE);
     if (!(file instanceof BnfFile)) return;
 
     Project project = file.getProject();
@@ -107,7 +115,7 @@ public class BnfGenerateParserUtilAction extends AnAction {
   }
 
   public static String createClass(@NotNull PsiFile origin,
-                                   @NotNull String title,
+                                   @NlsContexts.DialogTitle @NotNull String title,
                                    @Nullable String baseClass,
                                    @NotNull String suggestedName,
                                    @NotNull String suggestedPackage) {
@@ -123,8 +131,8 @@ public class BnfGenerateParserUtilAction extends AnAction {
 
   static String createClass(String className, PsiDirectory targetDirectory,
                             String baseClass,
-                            String title,
-                            Consumer<PsiClass> consumer) {
+                            @NlsContexts.Command String title,
+                            Consumer<? super PsiClass> consumer) {
     Project project = targetDirectory.getProject();
     Ref<PsiClass> resultRef = Ref.create();
     WriteCommandAction.writeCommandAction(project)
@@ -147,7 +155,7 @@ public class BnfGenerateParserUtilAction extends AnAction {
             targetReferenceList.add(ref);
           }
           if (consumer != null) {
-            consumer.consume(resultClass);
+            consumer.accept(resultClass);
           }
         }
         catch (IncorrectOperationException e) {

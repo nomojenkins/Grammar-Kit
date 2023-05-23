@@ -14,7 +14,6 @@ import com.intellij.psi.FileViewProvider;
 import com.intellij.psi.util.PsiTreeUtil;
 import com.intellij.util.containers.ContainerUtil;
 import com.intellij.util.containers.JBIterable;
-import gnu.trove.THashMap;
 import org.intellij.grammar.BnfFileType;
 import org.intellij.grammar.BnfLanguage;
 import org.intellij.grammar.KnownAttribute;
@@ -43,8 +42,8 @@ public class BnfFileImpl extends PsiFileBase implements BnfFile {
   }
 
   @Override
-  public void subtreeChanged() {
-    super.subtreeChanged();
+  public void clearCaches() {
+    super.clearCaches();
     myRules.drop();
     myGlobalAttributes.drop();
     myAttributeValues.drop();
@@ -72,6 +71,7 @@ public class BnfFileImpl extends PsiFileBase implements BnfFile {
     return PsiTreeUtil.getParentOfType(findElementAt(result.attrOffset), BnfAttr.class);
   }
 
+  @Override
   public <T> T findAttributeValue(@Nullable BnfRule rule, @NotNull KnownAttribute<T> knownAttribute, @Nullable String match) {
     T combined = null;
     boolean copied = false;
@@ -93,6 +93,7 @@ public class BnfFileImpl extends PsiFileBase implements BnfFile {
         KnownAttribute.ListValue copy = new KnownAttribute.ListValue();
         copy.addAll((KnownAttribute.ListValue)combined);
         copy.addAll((KnownAttribute.ListValue)cur);
+        //noinspection unchecked
         combined = (T)copy;
       }
     }
@@ -158,7 +159,7 @@ public class BnfFileImpl extends PsiFileBase implements BnfFile {
   }
 
   private Map<String, List<AttributeInfo>> calcAttributeValues() {
-    Map<String, List<AttributeInfo>> result = new THashMap<>();
+    Map<String, List<AttributeInfo>> result = new HashMap<>();
     JBIterable<BnfAttrs> allAttrs = GrammarUtil.bnfTraverser(this)
       .expand(Conditions.notInstanceOf(BnfExpression.class))
       .filter(BnfAttrs.class);

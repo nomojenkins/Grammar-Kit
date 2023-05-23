@@ -5,23 +5,24 @@
 package org.intellij.grammar.actions;
 
 import com.intellij.notification.Notification;
-import com.intellij.notification.NotificationGroup;
 import com.intellij.notification.NotificationType;
 import com.intellij.notification.Notifications;
+import com.intellij.openapi.actionSystem.ActionUpdateThread;
 import com.intellij.openapi.actionSystem.AnAction;
 import com.intellij.openapi.actionSystem.AnActionEvent;
-import com.intellij.openapi.actionSystem.LangDataKeys;
+import com.intellij.openapi.actionSystem.CommonDataKeys;
 import com.intellij.openapi.application.WriteAction;
 import com.intellij.openapi.diagnostic.Logger;
 import com.intellij.openapi.fileEditor.FileDocumentManager;
 import com.intellij.openapi.progress.*;
 import com.intellij.openapi.project.DumbService;
 import com.intellij.openapi.project.Project;
-import com.intellij.openapi.roots.ProjectFileIndex;
+import com.intellij.openapi.roots.PackageIndex;
 import com.intellij.openapi.util.Ref;
 import com.intellij.openapi.util.io.FileUtil;
 import com.intellij.openapi.util.text.StringUtil;
 import com.intellij.openapi.vfs.VfsUtil;
+import com.intellij.openapi.vfs.VfsUtilCore;
 import com.intellij.openapi.vfs.VirtualFile;
 import com.intellij.psi.PsiDocumentManager;
 import com.intellij.psi.PsiFile;
@@ -47,10 +48,12 @@ import static org.intellij.grammar.generator.ParserGeneratorUtil.getRootAttribut
  *         Date: 15.07.11 17:12
  */
 public class GenerateAction extends AnAction {
+  private static final Logger LOG = Logger.getInstance(GenerateAction.class);
 
-  public static final NotificationGroup LOG_GROUP = NotificationGroup.logOnlyGroup("Parser Generator Log");
-  
-  private static final Logger LOG = Logger.getInstance("org.intellij.grammar.actions.GenerateAction");
+  @Override
+  public @NotNull ActionUpdateThread getActionUpdateThread() {
+    return ActionUpdateThread.BGT;
+  }
 
   @Override
   public void update(@NotNull AnActionEvent e) {
@@ -74,7 +77,7 @@ public class GenerateAction extends AnAction {
 
   private static @NotNull JBIterable<VirtualFile> getFiles(@NotNull AnActionEvent e) {
     Project project = e.getProject();
-    JBIterable<VirtualFile> files = JBIterable.of(e.getData(LangDataKeys.VIRTUAL_FILE_ARRAY));
+    JBIterable<VirtualFile> files = JBIterable.of(e.getData(CommonDataKeys.VIRTUAL_FILE_ARRAY));
     if (project == null || files.isEmpty()) return JBIterable.empty();
     PsiManager manager = PsiManager.getInstance(project);
     return files.filter(o -> manager.findFile(o) instanceof BnfFile);
@@ -84,7 +87,7 @@ public class GenerateAction extends AnAction {
     Map<VirtualFile, VirtualFile> rootMap = new LinkedHashMap<>();
     Map<VirtualFile, String> packageMap = new LinkedHashMap<>();
     PsiManager psiManager = PsiManager.getInstance(project);
-    ProjectFileIndex fileIndex = ProjectFileIndex.SERVICE.getInstance(project);
+    PackageIndex packageIndex = PackageIndex.getInstance(project);
     WriteAction.run(() -> {
       for (VirtualFile file : bnfFiles) {
         if (!file.isValid()) continue;
@@ -96,7 +99,7 @@ public class GenerateAction extends AnAction {
                                 StringUtil.getShortName(parserClass) + ".java",
                                 StringUtil.getPackageName(parserClass), true);
         rootMap.put(file, target);
-        packageMap.put(target, StringUtil.notNullize(fileIndex.getPackageNameByDirectory(target)));
+        packageMap.put(target, StringUtil.notNullize(packageIndex.getPackageNameByDirectory(target)));
       }
     });
 
@@ -134,11 +137,12 @@ public class GenerateAction extends AnAction {
           VirtualFile file = bnfFiles.get(i);
           indicator.setFraction((double)i / l);
           indicator.setText2(file.getPath());
-          String sourcePath = FileUtil.toSystemDependentName(FileUtil.toCanonicalPath(file.getParent().getPath()));
+          String sourcePath = file.isInLocalFileSystem() ? FileUtil.toSystemDependentName(
+            FileUtil.toCanonicalPath(file.getParent().getPath())) : "";
           VirtualFile target = rootMap.get(file);
           if (target == null) return;
           targets.add(target);
-          File genDir = new File(VfsUtil.virtualToIoFile(target).getAbsolutePath());
+          File genDir = new File(VfsUtilCore.virtualToIoFile(target).getAbsolutePath());
           String packagePrefix = packageMap.get(target);
           long time = System.currentTimeMillis();
           int filesCount = files.size();
